@@ -1,4 +1,7 @@
 announcement.wav
 announcement.mp3
 test.py
-yolo_11s.pt
+yolo11s.pt
+videos\
+demo*.py
+.gitignore
