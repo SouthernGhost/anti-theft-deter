@@ -9,13 +9,7 @@ import winsound  # For buzzer sound on Windows
 
 # Remove DeepSORT - using simple detection only
 
-# Optional TTS import
-try:
-    import pyttsx3
-    TTS_AVAILABLE = True
-except ImportError:
-    TTS_AVAILABLE = False
-    print("Warning: pyttsx3 not available. Audio announcements will be disabled.")
+# Audio announcements using winsound
 
 
 class BathroomMonitor:
@@ -26,12 +20,13 @@ class BathroomMonitor:
     Features:
     - Real-time YOLO object detection
     - Configurable bathroom zone monitoring
-    - Audio alerts with TTS or custom audio file options
+    - Audio alerts using winsound (announcement.wav file or buzzer fallback)
     - Multi-threaded architecture for smooth performance
     - UI scaling based on video resolution
+    - Configurable statistics overlay with custom scaling
     """
 
-    def __init__(self, model_path: str, source=0, bathroom_zone=None, use_tts=True):
+    def __init__(self, model_path: str, source=0, bathroom_zone=None, show_stats=True, stats_scale_factor=1.0):
         # Video capture setup
         self.source = source
         self.cap = cv2.VideoCapture(source)
@@ -84,27 +79,19 @@ class BathroomMonitor:
         self.annotated_frame = None
 
         # Audio announcement management
-        self.use_tts = use_tts  # Toggle between TTS and buzzer
         self.is_speaking = False
         self.last_announcement_time = 0
         self.min_announcement_interval = 2.0  # Minimum 2 seconds between announcements
+
+        # Stats UI configuration
+        self.show_stats = show_stats
+        self.stats_scale_factor = stats_scale_factor
 
         # UI scaling factors (will be set based on video resolution)
         self.scale_factor = 0.5
         self.text_scale = 0.5
         self.thickness = 0.1
         self.font_thickness = 1
-
-        # Text-to-speech for announcements
-        if TTS_AVAILABLE:
-            try:
-                self.tts_engine = pyttsx3.init()
-                self.tts_engine.setProperty('rate', 150)
-            except:
-                self.tts_engine = None
-                print("Warning: TTS engine initialization failed")
-        else:
-            self.tts_engine = None
 
         # Statistics
         self.stats = {
@@ -399,10 +386,27 @@ class BathroomMonitor:
 
     def _draw_stats_overlay(self, frame):
         """Draw statistics overlay on frame"""
-        # Calculate scaled dimensions for stats box
-        box_margin = max(5, int(10 * self.scale_factor))
-        box_width = max(200, int(400 * self.scale_factor))
-        box_height = max(100, int(200 * self.scale_factor))
+        # Check if stats display is enabled
+        if not self.show_stats:
+            return
+
+        # Use only user-specified scale factor (independent of video resolution)
+        user_scale = self.stats_scale_factor
+
+        # Base dimensions (designed for normal scale = 1.0)
+        base_box_margin = 10
+        base_box_width = 400
+        base_box_height = 200
+        base_text_scale = 0.6
+        base_text_thickness = 2
+        base_line_spacing = 25
+        base_text_margin_x = 10
+        base_text_margin_y = 30
+
+        # Calculate scaled dimensions using only user scale factor
+        box_margin = max(2, int(base_box_margin * user_scale))
+        box_width = max(50, int(base_box_width * user_scale))
+        box_height = max(30, int(base_box_height * user_scale))
 
         # Create semi-transparent overlay
         overlay = frame.copy()
@@ -410,7 +414,7 @@ class BathroomMonitor:
                      (box_margin + box_width, box_margin + box_height), (0, 0, 0), -1)
         cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
 
-        # Add statistics text with scaled font
+        # Add statistics text with user-scaled font
         stats_text = [
             f"Customers Scanned: {self.stats['customers_scanned']}",
             f"Merchandise Detected: {self.stats['merchandise_detected']}",
@@ -420,11 +424,11 @@ class BathroomMonitor:
             f"Time: {datetime.now().strftime('%H:%M:%S')}"
         ]
 
-        stats_text_scale = max(0.3, 0.6 * self.scale_factor)
-        stats_text_thickness = max(1, int(2 * self.scale_factor))
-        line_spacing = max(12, int(25 * self.scale_factor))
-        text_start_x = box_margin + max(5, int(10 * self.scale_factor))
-        text_start_y = box_margin + max(15, int(30 * self.scale_factor))
+        stats_text_scale = max(0.1, base_text_scale * user_scale)
+        stats_text_thickness = max(1, int(base_text_thickness * user_scale))
+        line_spacing = max(5, int(base_line_spacing * user_scale))
+        text_start_x = box_margin + max(1, int(base_text_margin_x * user_scale))
+        text_start_y = box_margin + max(5, int(base_text_margin_y * user_scale))
 
         for i, text in enumerate(stats_text):
             cv2.putText(frame, text, (text_start_x, text_start_y + i * line_spacing),
@@ -581,56 +585,28 @@ class BathroomMonitor:
 
         print(f"ANNOUNCEMENT: {message}")
 
-        if self.use_tts:
-            # Make TTS announcement in separate thread to avoid blocking
-            if self.tts_engine is not None:
-                def speak():
-                    try:
-                        # Create a fresh TTS engine for each announcement to avoid conflicts
-                        import pyttsx3
-                        tts = pyttsx3.init()
+        # Play audio file
+        def play_audio_file():
+            try:
+                # Play announcement.wav file with SND_NOSTOP to prevent interruption
+                winsound.PlaySound("announcement.wav", winsound.SND_FILENAME | winsound.SND_NOSTOP)
 
-                        # Set speech rate to be faster for quicker announcements
-                        tts.setProperty('rate', 250)
-
-                        tts.say(message)
-                        tts.runAndWait()
-                        tts.stop()
-
-                        # Mark speaking as complete
-                        self.is_speaking = False
-
-                    except Exception as e:
-                        print(f"TTS Error: {e}")
-                        self.is_speaking = False
-
-                threading.Thread(target=speak, daemon=True).start()
-            else:
-                # If no TTS engine, just mark as not speaking
+                # Mark speaking as complete
                 self.is_speaking = False
-        else:
-            # Use audio file instead of TTS
-            def play_audio_file():
+
+            except Exception as e:
+                print(f"Audio File Error: {e}")
+                # Fallback to buzzer beeps if audio file fails
                 try:
-                    # Play announcement.wav file with SND_NOSTOP to prevent interruption
-                    winsound.PlaySound("speech.wav", winsound.SND_FILENAME | winsound.SND_NOSTOP)
+                    for i in range(3):
+                        winsound.Beep(1000, 200)  # 1000Hz for 200ms
+                        if i < 2:
+                            time.sleep(0.1)
+                except:
+                    pass
+                self.is_speaking = False
 
-                    # Mark speaking as complete
-                    self.is_speaking = False
-
-                except Exception as e:
-                    print(f"Audio File Error: {e}")
-                    # Fallback to buzzer beeps if audio file fails
-                    try:
-                        for i in range(3):
-                            winsound.Beep(1000, 200)  # 1000Hz for 200ms
-                            if i < 2:
-                                time.sleep(0.1)
-                    except:
-                        pass
-                    self.is_speaking = False
-
-            threading.Thread(target=play_audio_file, daemon=True).start()
+        threading.Thread(target=play_audio_file, daemon=True).start()
 
     def _print_stats(self):
         """Print current statistics"""
@@ -646,26 +622,27 @@ def main():
     """Main function to run the bathroom monitoring system"""
     # Configuration
     model_path = "yolo11n.pt"  # Path to YOLO model (will download if not exists)
-    video_source = "videos/vid10.mp4"  # Use 0 for webcam, or path to video file
-
-    # Audio Alert Configuration
-    use_tts = False  # True: Text-to-speech announcements, False: Play announcement.wav file
+    video_source = "videos/vid5.mp4"  # Use 0 for webcam, or path to video file
 
     # Custom bathroom zone (optional)
     bathroom_zone = {
-        'x1': 0.01, 'y1': 0.1,  # Top-left corner (relative coordinates)
-        'x2': 0.99, 'y2': 0.99   # Bottom-right corner (relative coordinates)
+        'x1': 0.01, 'y1': 0.01,  # Top-left corner (relative coordinates)
+        'x2': 0.99, 'y2': 0.6   # Bottom-right corner (relative coordinates)
     }
 
+    # Stats UI Configuration
+    show_stats = False  # True: Show statistics overlay, False: Hide statistics
+    stats_scale_factor = 0.2  # Scale factor for stats UI (1.0 = normal, 1.5 = 50% larger, 0.8 = 20% smaller)
+
     # Create and start monitor
-    monitor = BathroomMonitor(model_path, video_source, bathroom_zone, use_tts)
+    monitor = BathroomMonitor(model_path, video_source, bathroom_zone, show_stats, stats_scale_factor)
 
     try:
         monitor.start()
 
         # Keep main thread alive
         while monitor.running:
-            time.sleep(1)
+            time.sleep(0.1)
 
     except KeyboardInterrupt:
         print("\nShutting down...")
