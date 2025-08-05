@@ -589,7 +589,7 @@ class BathroomMonitor:
         def play_audio_file():
             try:
                 # Play announcement.wav file with SND_NOSTOP to prevent interruption
-                winsound.PlaySound("announcement.wav", winsound.SND_FILENAME | winsound.SND_NOSTOP)
+                winsound.PlaySound("speech1.wav", winsound.SND_FILENAME | winsound.SND_NOSTOP)
 
                 # Mark speaking as complete
                 self.is_speaking = False
