@@ -2,6 +2,7 @@ announcement.wav
 announcement.mp3
 test.py
 yolo11s.pt
-videos\
+videos/
 demo*.py
 .gitignore
+__pycache__
