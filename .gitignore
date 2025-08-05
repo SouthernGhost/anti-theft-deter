@@ -4,5 +4,6 @@ test.py
 yolo11s.pt
 videos/
 demo*.py
-.gitignore
 __pycache__
+datasets/
+runs/
