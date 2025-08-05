@@ -1,190 +1,418 @@
-# Bathroom Anti-Theft Monitoring System
+# Anti-Theft Deterrent System
 
-A multi-threaded computer vision system designed to monitor bathroom entrances using a fisheye camera to detect customers carrying merchandise and deter theft.
+A comprehensive computer vision system for retail theft prevention using YOLO object detection. The system combines custom dataset creation, model training, and real-time monitoring capabilities for retail environments.
 
-## Features
+## Overview
 
-### Core Functionality
-- **Real-time Object Detection**: Uses YOLO11 to detect people and merchandise items
-- **Multi-threaded Architecture**: Separate threads for video capture, object detection, and display
-- **Bathroom Zone Monitoring**: Configurable zone detection for bathroom entrance areas
-- **Merchandise Detection**: Identifies bags, backpacks, handbags, suitcases, and other items
-- **Customer Scanning**: Automatically detects when customers approach the bathroom zone
-- **Audio Announcements**: Text-to-speech warnings when merchandise is detected (optional)
-- **Abandoned Item Tracking**: Monitors items left behind for extended periods
-- **Real-time Statistics**: Tracks customers scanned, merchandise detected, and theft deterred
+This repository contains:
+1. **Dataset Creation Tools**: Merge multiple retail datasets into a unified format
+2. **Training Pipeline**: Train custom YOLO models with checkpoint resuming
+3. **Monitoring System**: Real-time theft detection and alert system
+4. **Pre-trained Models**: Ready-to-use models for retail object detection
 
-### Anti-Theft Features
-- **Merchandise Alerts**: Warns customers that merchandise is not permitted in bathrooms
-- **Abandoned Item Detection**: Identifies items left behind as potential theft attempts
-- **Visual Monitoring**: Real-time display with annotated detections
-- **Statistical Reporting**: Comprehensive tracking of security events
+## Project Structure
 
-## Files
+```
+anti-theft-deter/
+├── main.py                 # Real-time monitoring system
+├── train_yolo.py          # YOLO training script with checkpointing
+├── create_custom_dataset.py # Dataset merger (if available)
+├── datasets/              # Training datasets
+│   ├── custom_data/       # Merged dataset (219 classes)
+│   ├── shopcart/          # Shopping cart detection dataset
+│   ├── grocery2/          # Vegetables and produce dataset
+│   └── grozi/             # Retail products dataset (120 classes)
+├── videos/                # Test video files
+├── audio/                 # Audio alert files
+└── yolo11n.pt            # Pre-trained YOLO model
+```
 
-### Main Implementation
-- **`demo2.py`**: Full multi-threaded bathroom monitoring system
-- **`demo_simple.py`**: Simplified single-threaded version for testing and demonstration
-- **`test_video.py`**: Basic video reading and YOLO detection test
+## Dataset Information
 
-### Supporting Files
-- **`demo.py`**: Original detection system with tracking capabilities
-- **`vid2.mp4`**: Sample video file for testing
-- **`yolo11s.pt`**: YOLO11 small model weights (downloaded automatically)
+### Merged Custom Dataset
+
+The system uses a comprehensive dataset with 219 classes:
+
+| Dataset Component | Classes | Images | Description |
+|------------------|---------|---------|-------------|
+| **COCO** | 80 | 0 | Preserved pretrained classes |
+| **Shopcart** | 1 | 215 | Shopping cart detection |
+| **Grocery2** | 18 | 1,731 | Vegetables and produce |
+| **Grozi** | 120 | 11,194 | Retail products |
+| **TOTAL** | **219** | **13,140** | Complete merged dataset |
+
+### Class Categories
+
+1. **COCO Classes (0-79)**: Standard objects (person, bicycle, car, etc.)
+2. **Shopcart Classes (80)**: Shopping cart detection
+3. **Grocery2 Classes (81-98)**: Fresh produce (Asparagus, Brinjal, Cabbage, etc.)
+4. **Grozi Classes (99-218)**: Retail products (cleaning supplies, snacks, beverages, etc.)
 
 ## Installation
 
-### Requirements
+### Prerequisites
+
+- Python 3.8+
+- OpenCV
+- PyTorch
+- Ultralytics YOLO
+
+### Install Dependencies
+
 ```bash
-pip install ultralytics opencv-python numpy pyttsx3
+pip install ultralytics opencv-python PyYAML Pillow requests numpy
 ```
 
-### Optional Dependencies
-- **pyttsx3**: For text-to-speech announcements (system will work without it)
-- **TensorRT**: For optimized inference (optional)
+### Additional Windows Dependencies
+
+For audio alerts on Windows:
+```bash
+# winsound is included with Python on Windows
+# No additional installation required
+```
 
 ## Usage
 
-### Quick Start
-```bash
-# Run the simple demonstration
-python demo_simple.py
+### 1. Training Custom Models
 
-# Run the full multi-threaded system
-python demo2.py
-```
+#### Configuration-Based Training
 
-### Configuration
+The training script uses a simple configuration approach. Edit the CONFIG section in `train_yolo.py`:
 
-#### Video Source
 ```python
-# Use webcam
-video_source = 0
-
-# Use video file
-video_source = "vid2.mp4"
-
-# Use IP camera
-video_source = "rtsp://camera_ip/stream"
-```
-
-#### Bathroom Zone
-```python
-bathroom_zone = {
-    'x1': 0.3, 'y1': 0.2,  # Top-left corner (relative coordinates 0-1)
-    'x2': 0.7, 'y2': 0.8   # Bottom-right corner (relative coordinates 0-1)
+CONFIG = {
+    # Dataset path - Path to your custom dataset YAML file
+    "data_yaml_path": "datasets/custom_data/data.yaml",
+    
+    # Training parameters
+    "epochs": 100,              # Number of training epochs
+    "imgsz": 640,               # Input image size (640, 1280, etc.)
+    "batch_size": 16,           # Batch size (reduce if memory errors)
+    "device": "cpu",            # Device: "auto", "cpu", "0" (GPU 0), etc.
+    
+    # Checkpoint settings (for resuming training)
+    "checkpoint_dir": "checkpoints",  # Directory for checkpoints (None to disable)
+    
+    # Model settings
+    "model_name": "yolo11n.pt", # YOLO model variant
 }
 ```
 
-#### YOLO Model
-```python
-# Different model sizes available
-model_path = "yolo11n.pt"  # Nano (fastest)
-model_path = "yolo11s.pt"  # Small (balanced)
-model_path = "yolo11m.pt"  # Medium (more accurate)
-model_path = "yolo11l.pt"  # Large (most accurate)
+#### Run Training
+
+```bash
+python train_yolo.py
 ```
 
-## System Architecture
+#### Training Features
 
-### Multi-threaded Design (demo2.py)
-1. **Video Capture Thread**: Continuously captures frames from camera/video
-2. **Detection Thread**: Runs YOLO inference on captured frames
-3. **Display Thread**: Shows annotated frames with detections
-4. **Monitoring Thread**: Processes detections for security logic
+- **Automatic Checkpoint Resuming**: Training automatically resumes from the last checkpoint if available
+- **Custom Model Saving**: Best model is automatically saved as `yolo_custom.pt` in the root directory
+- **Progress Tracking**: Clear feedback on training progress and checkpoint status
+- **Flexible Configuration**: Easy parameter adjustment through CONFIG dictionary
 
-### Detection Classes
-- **Person (Class 0)**: Customers approaching bathroom
-- **Merchandise Classes**:
-  - Class 24: Backpack
-  - Class 25: Umbrella
-  - Class 26: Handbag
-  - Class 27: Tie
-  - Class 28: Suitcase
-  - Class 29: Frisbee
+#### Training Workflow
 
-## Controls
+1. **First Run**: Starts from epoch 0 with pretrained weights
+   ```
+   Checkpoint directory ready: checkpoints
+   No existing checkpoint found, will start from epoch 0
+   Starting training from epoch 0 with yolo11n.pt pretrained weights
+   ```
 
-### Keyboard Commands
-- **'q'**: Quit the application
-- **'s'**: Show current statistics
-- **ESC**: Close OpenCV windows
+2. **Subsequent Runs**: Automatically resumes from checkpoint
+   ```
+   Found existing checkpoint: checkpoints/last.pt
+   Resuming training from checkpoint: checkpoints/last.pt
+   ```
 
-### Visual Indicators
-- **Green Box**: Person detected
-- **Yellow Box**: Customer in bathroom zone
-- **Red Box**: Merchandise detected
-- **Magenta Box**: Merchandise in bathroom zone (ALERT)
-- **Yellow Rectangle**: Bathroom monitoring zone
+3. **Completion**: Saves custom model for easy access
+   ```
+   Best model saved as: yolo_custom.pt
+   ```
 
-## Statistics Tracking
+### 2. Real-Time Monitoring System
 
-The system tracks the following metrics:
-- **Customers Scanned**: Number of people detected in bathroom zone
-- **Merchandise Detected**: Number of items found with customers
-- **Announcements Made**: Number of audio warnings issued
-- **Abandoned Items**: Items left behind for extended periods
-- **Theft Deterred**: Successful prevention events
+#### Run the Monitoring System
 
-## Deployment Considerations
-
-### Hardware Requirements
-- **Camera**: Fisheye camera for wide-angle bathroom entrance monitoring
-- **Processing**: GPU recommended for real-time YOLO inference
-- **Storage**: Minimal storage needed (no video recording by default)
-
-### Privacy and Legal
-- Ensure compliance with local privacy laws
-- Position camera to monitor entrance only, not bathroom interiors
-- Consider adding privacy notices
-- Implement data retention policies
-
-### Performance Optimization
-- Use TensorRT for faster inference on NVIDIA GPUs
-- Adjust detection confidence thresholds based on environment
-- Optimize bathroom zone coordinates for your specific layout
-- Consider using smaller YOLO models for faster processing
-
-## Customization
-
-### Adding New Merchandise Classes
-```python
-# Add COCO class IDs for additional items
-merchandise_classes = [24, 25, 26, 27, 28, 29, 67]  # Added 67 for cell phone
+```bash
+python main.py
 ```
 
-### Adjusting Detection Sensitivity
-```python
-# Lower confidence for more detections
-results = model(frame, conf=0.3)
+#### System Features
 
-# Higher confidence for fewer false positives
-results = model(frame, conf=0.7)
+- **Multi-threaded Processing**: Efficient real-time video processing
+- **Fisheye Camera Support**: Handles wide-angle surveillance cameras
+- **Object Detection**: Detects people and retail merchandise
+- **Alert System**: Audio and visual alerts for suspicious activity
+- **Bathroom Monitoring**: Specialized monitoring for high-risk areas
+- **Abandoned Item Detection**: Tracks items left behind by customers
+
+#### Monitoring Capabilities
+
+- Person detection and tracking
+- Merchandise detection (219 product categories)
+- Shopping cart monitoring
+- Suspicious behavior alerts
+- Real-time video display with bounding boxes
+- Audio announcements for detected events
+
+### 3. Model Inference
+
+#### Using the Custom Trained Model
+
+```bash
+# Run inference on images
+yolo predict model=yolo_custom.pt source=path/to/images
+
+# Run inference on video
+yolo predict model=yolo_custom.pt source=path/to/video.mp4
+
+# Run inference on webcam
+yolo predict model=yolo_custom.pt source=0
 ```
 
-### Custom Announcement Messages
-```python
-def _make_announcement(self, item_count):
-    if item_count == 1:
-        message = "Please leave your item outside the bathroom."
-    else:
-        message = f"Please leave your {item_count} items outside the bathroom."
+#### Using Pre-trained Models
+
+```bash
+# Use the base YOLO11n model
+yolo predict model=yolo11n.pt source=path/to/images
 ```
+
+## Configuration Options
+
+### Training Configuration
+
+Modify `train_yolo.py` CONFIG section:
+
+```python
+# Basic training settings
+"epochs": 100,              # Training duration
+"batch_size": 16,           # Memory usage control
+"imgsz": 640,               # Input resolution
+
+# Hardware settings
+"device": "auto",           # "auto", "cpu", "0", "1", etc.
+
+# Model selection
+"model_name": "yolo11n.pt", # yolo11n.pt, yolo11s.pt, yolo11m.pt, etc.
+
+# Checkpoint management
+"checkpoint_dir": "checkpoints",  # Enable automatic resuming
+```
+
+### Monitoring Configuration
+
+Edit `main.py` for monitoring settings:
+
+- Camera input sources
+- Detection thresholds
+- Alert sensitivity
+- Audio settings
+- Display options
+
+## File Outputs
+
+### Training Outputs
+
+- `yolo_custom.pt`: Custom trained model (root directory)
+- `runs/detect/train/weights/best.pt`: Best model weights
+- `runs/detect/train/weights/last.pt`: Latest checkpoint
+- `checkpoints/last.pt`: Resumable checkpoint
+
+### Monitoring Outputs
+
+- Real-time video display with detection overlays
+- Console logs of detected events
+- Audio alerts for suspicious activities
+
+## Performance Optimization
+
+### Training Performance
+
+- Use GPU for faster training: `"device": "0"`
+- Adjust batch size based on available memory
+- Use larger models for better accuracy: `yolo11s.pt`, `yolo11m.pt`
+- Enable mixed precision training (automatic)
+
+### Inference Performance
+
+- Use smaller models for real-time: `yolo11n.pt`
+- Reduce input resolution for speed: `imgsz=320`
+- Use GPU acceleration when available
+- Optimize video processing threads
 
 ## Troubleshooting
 
-### Common Issues
-1. **Camera not accessible**: Check camera permissions and connections
-2. **YOLO model download fails**: Ensure internet connection
-3. **Poor detection accuracy**: Adjust lighting and camera positioning
-4. **High CPU usage**: Consider using GPU acceleration or smaller model
+### Common Training Issues
 
-### Performance Tips
-- Use appropriate model size for your hardware
-- Adjust frame processing rate if needed
-- Optimize bathroom zone size and position
-- Consider using video file for testing before live deployment
+1. **Memory Errors**: Reduce `batch_size` in CONFIG
+2. **CUDA Errors**: Set `"device": "cpu"` for CPU training
+3. **Dataset Not Found**: Check `data_yaml_path` in CONFIG
+4. **Checkpoint Errors**: Delete `checkpoints/` folder to start fresh
 
-## License
+### Common Monitoring Issues
 
-This system is designed for retail security applications. Ensure compliance with local laws and regulations regarding surveillance and privacy.
+1. **Camera Not Found**: Check camera index in `main.py`
+2. **Model Loading Errors**: Ensure `yolo_custom.pt` exists
+3. **Performance Issues**: Reduce video resolution or detection frequency
+4. **Audio Errors**: Check Windows audio system and winsound module
+
+## Advanced Usage
+
+### Custom Dataset Creation
+
+If you have the dataset creation script:
+
+```bash
+python create_custom_dataset.py --output custom_data --split 0.8
+```
+
+### Multi-GPU Training
+
+```python
+CONFIG = {
+    "device": "0,1",  # Use multiple GPUs
+    "batch_size": 32, # Increase batch size for multi-GPU
+}
+```
+
+### Production Deployment
+
+1. Train model with sufficient epochs (200-500)
+2. Validate on test dataset
+3. Deploy `yolo_custom.pt` to production system
+4. Configure monitoring thresholds for environment
+5. Set up automated alert systems
+
+## License and Credits
+
+This system uses:
+- Ultralytics YOLO for object detection
+- OpenCV for video processing
+- PyTorch for deep learning
+- Multiple retail datasets for comprehensive training
+
+## Quick Start Guide
+
+### For Training a Custom Model
+
+1. **Prepare Environment**:
+   ```bash
+   pip install ultralytics opencv-python PyYAML Pillow requests numpy
+   ```
+
+2. **Configure Training**:
+   Edit `train_yolo.py` CONFIG section with your desired settings
+
+3. **Start Training**:
+   ```bash
+   python train_yolo.py
+   ```
+
+4. **Monitor Progress**:
+   Training will automatically resume if interrupted
+
+5. **Use Trained Model**:
+   Your custom model will be saved as `yolo_custom.pt`
+
+### For Running the Monitoring System
+
+1. **Ensure Model Exists**:
+   Either train a custom model or use the pre-trained `yolo11n.pt`
+
+2. **Configure Camera**:
+   Edit camera settings in `main.py` if needed
+
+3. **Run Monitoring**:
+   ```bash
+   python main.py
+   ```
+
+4. **Monitor Output**:
+   Watch the video feed and listen for audio alerts
+
+## Dataset File Structure
+
+### Custom Data Format
+
+```
+datasets/custom_data/
+├── data.yaml              # Dataset configuration
+├── train/
+│   ├── images/            # Training images (10,512 files)
+│   │   ├── grozi_1_video1.png
+│   │   ├── shopcart_image1.jpg
+│   │   └── grocery2_image1.jpg
+│   └── labels/            # Training labels (10,512 files)
+│       ├── grozi_1_video1.txt
+│       ├── shopcart_image1.txt
+│       └── grocery2_image1.txt
+└── val/
+    ├── images/            # Validation images (2,628 files)
+    └── labels/            # Validation labels (2,628 files)
+```
+
+### Label Format
+
+YOLO format labels (one per line):
+```
+class_id x_center y_center width height
+```
+
+Example:
+```
+0 0.5 0.5 0.3 0.4    # person at center, 30% width, 40% height
+99 0.2 0.3 0.1 0.15  # grozi product at 20% x, 30% y
+```
+
+## Model Performance
+
+### Training Metrics
+
+After training completion, you'll see metrics like:
+- **mAP@0.5**: Mean Average Precision at IoU threshold 0.5
+- **mAP@0.5:0.95**: Mean Average Precision across IoU thresholds 0.5-0.95
+- **Box Loss**: Bounding box regression loss
+- **Class Loss**: Classification loss
+- **DFL Loss**: Distribution Focal Loss
+
+### Inference Speed
+
+Model performance varies by hardware:
+- **CPU**: ~50-100ms per image (yolo11n.pt)
+- **GPU (RTX 3080)**: ~5-10ms per image (yolo11n.pt)
+- **GPU (RTX 4090)**: ~3-7ms per image (yolo11n.pt)
+
+## System Requirements
+
+### Minimum Requirements
+
+- **CPU**: Intel i5 or AMD Ryzen 5 (4+ cores)
+- **RAM**: 8GB minimum, 16GB recommended
+- **Storage**: 10GB free space for datasets
+- **Python**: 3.8 or higher
+
+### Recommended Requirements
+
+- **CPU**: Intel i7 or AMD Ryzen 7 (8+ cores)
+- **GPU**: NVIDIA RTX 3060 or better (6GB+ VRAM)
+- **RAM**: 32GB for large batch training
+- **Storage**: SSD with 50GB+ free space
+
+### GPU Support
+
+CUDA-compatible NVIDIA GPUs are recommended for:
+- Faster training (10-50x speedup)
+- Real-time inference
+- Larger batch sizes
+- Higher resolution processing
+
+## Support
+
+For issues and questions:
+1. Check the troubleshooting section
+2. Verify all dependencies are installed
+3. Ensure dataset paths are correct
+4. Check hardware compatibility (GPU/CPU)
+5. Review console output for specific error messages
