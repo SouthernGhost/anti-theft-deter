@@ -38,7 +38,9 @@ CONFIG = {
     "device": "cpu",            # Device: "auto", "cpu", "0" (GPU 0), "1" (GPU 1), etc.
 
     # Checkpoint settings (for resuming training)
-    "checkpoint_dir": None,     # Directory to save/load checkpoints (None to disable)
+    "checkpoint_dir": "checkpoints",  # Directory to save/load checkpoints (None to disable)
+                                      # If checkpoint exists, training will resume automatically
+                                      # If no checkpoint, training starts from epoch 0
 
     # Model settings
     "model_name": "yolo11n.pt", # YOLO model: yolo11n.pt, yolo11s.pt, yolo11m.pt, yolo11l.pt, yolo11x.pt
@@ -55,13 +57,22 @@ def train_model(data_yaml_path, epochs=100, imgsz=640, batch_size=16, checkpoint
         print("💡 Run 'python create_custom_dataset.py' first to create the dataset")
         return None, None
 
-    # Setup checkpoint directory
+    # Setup checkpoint directory and check for existing checkpoint
+    checkpoint_path = None
+    resume_training = False
+
     if checkpoint_dir:
         checkpoint_dir = Path(checkpoint_dir)
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        last_ckpt = checkpoint_dir / "last.pt"
-    else:
-        last_ckpt = None
+        checkpoint_path = checkpoint_dir / "last.pt"
+
+        # Check if checkpoint exists
+        if checkpoint_path.exists():
+            resume_training = True
+            print(f"🔍 Found existing checkpoint: {checkpoint_path}")
+        else:
+            print(f"📁 Checkpoint directory ready: {checkpoint_dir}")
+            print(f"🆕 No existing checkpoint found, will start from epoch 0")
 
     print(f"🚀 Starting {CONFIG['model_name']} training...")
     print(f"   - Dataset: {data_yaml_path}")
@@ -69,12 +80,13 @@ def train_model(data_yaml_path, epochs=100, imgsz=640, batch_size=16, checkpoint
     print(f"   - Image size: {imgsz}")
     print(f"   - Batch size: {batch_size}")
     print(f"   - Device: {device}")
+    if checkpoint_dir:
+        print(f"   - Checkpoint: {'Resume' if resume_training else 'Start new'}")
 
     try:
-        # Resume training if checkpoint exists
-        if last_ckpt and last_ckpt.exists():
-            print(f"🔄 Resuming training from {last_ckpt}")
-            model = YOLO(str(last_ckpt))
+        if resume_training:
+            print(f"🔄 Resuming training from checkpoint: {checkpoint_path}")
+            model = YOLO(str(checkpoint_path))
             results = model.train(
                 data=str(data_yaml_path),
                 epochs=epochs,
@@ -84,7 +96,11 @@ def train_model(data_yaml_path, epochs=100, imgsz=640, batch_size=16, checkpoint
                 resume=True
             )
         else:
-            print(f"🚀 Starting new training from {CONFIG['model_name']} pretrained weights")
+            if checkpoint_path and checkpoint_path.exists():
+                print(f"🚀 Starting new training from {CONFIG['model_name']} pretrained weights")
+            else:
+                print(f"🚀 Starting training from epoch 0 with {CONFIG['model_name']} pretrained weights")
+
             model = YOLO(CONFIG['model_name'])
             results = model.train(
                 data=str(data_yaml_path),
@@ -93,19 +109,63 @@ def train_model(data_yaml_path, epochs=100, imgsz=640, batch_size=16, checkpoint
                 batch=batch_size,
                 device=device
             )
-            
-            # Save checkpoint if directory specified
-            if checkpoint_dir:
-                yolo_run_dir = Path("runs/detect/train/weights/last.pt")
-                if yolo_run_dir.exists():
-                    shutil.copy(yolo_run_dir, last_ckpt)
-                    print(f"✅ Saved checkpoint to {last_ckpt}")
+
+        # Save checkpoint after training completes
+        if checkpoint_dir:
+            try:
+                # Find the most recent training run directory
+                runs_dir = Path("runs/detect")
+                if runs_dir.exists():
+                    train_dirs = [d for d in runs_dir.iterdir() if d.is_dir() and d.name.startswith("train")]
+                    if train_dirs:
+                        latest_train_dir = max(train_dirs, key=lambda x: x.stat().st_mtime)
+                        yolo_last_pt = latest_train_dir / "weights" / "last.pt"
+
+                        if yolo_last_pt.exists():
+                            shutil.copy(yolo_last_pt, checkpoint_path)
+                            print(f"✅ Saved checkpoint to: {checkpoint_path}")
+                        else:
+                            print(f"⚠️  Could not find last.pt at: {yolo_last_pt}")
+                    else:
+                        print("⚠️  No training directories found for checkpoint saving")
+                else:
+                    print("⚠️  runs/detect directory not found for checkpoint saving")
+            except Exception as e:
+                print(f"⚠️  Failed to save checkpoint: {e}")
         
+        # Copy best model to root folder with custom name
+        best_model_path = None
+        try:
+            # Find the most recent training run directory
+            runs_dir = Path("runs/detect")
+            if runs_dir.exists():
+                # Get all train directories and find the most recent one
+                train_dirs = [d for d in runs_dir.iterdir() if d.is_dir() and d.name.startswith("train")]
+                if train_dirs:
+                    # Sort by modification time to get the most recent
+                    latest_train_dir = max(train_dirs, key=lambda x: x.stat().st_mtime)
+                    best_model_source = latest_train_dir / "weights" / "best.pt"
+
+                    if best_model_source.exists():
+                        best_model_path = Path("yolo_custom.pt")
+                        shutil.copy(best_model_source, best_model_path)
+                        print(f"✅ Best model saved as: {best_model_path.resolve()}")
+                    else:
+                        print(f"⚠️  Best model not found at: {best_model_source}")
+                else:
+                    print("⚠️  No training directories found in runs/detect/")
+            else:
+                print("⚠️  runs/detect directory not found")
+        except Exception as e:
+            print(f"⚠️  Failed to copy best model: {e}")
+
         print("✅ Training completed successfully!")
         print(f"   - Model weights saved in: runs/detect/train/weights/")
         print(f"   - Best model: runs/detect/train/weights/best.pt")
         print(f"   - Last model: runs/detect/train/weights/last.pt")
-        
+        if best_model_path and best_model_path.exists():
+            print(f"   - Custom model: {best_model_path.resolve()}")
+
         return model, results
         
     except Exception as e:
@@ -215,6 +275,8 @@ def main():
             pass
 
         print(f"\n📝 To run inference:")
+        print(f"   yolo predict model=yolo_custom.pt source=path/to/images")
+        print(f"   # Or use the original path:")
         print(f"   yolo predict model=runs/detect/train/weights/best.pt source=path/to/images")
 
     else:
