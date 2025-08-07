@@ -1,52 +1,53 @@
 # Anti-Theft Deterrent System
 
-A comprehensive computer vision system for retail theft prevention using YOLO object detection. The system combines custom dataset creation, model training, and real-time monitoring capabilities for retail environments.
+A comprehensive computer vision system for retail theft prevention using YOLO object detection. The system uses a pre-trained YOLOv8n model trained on Open Images V7 dataset for real-time monitoring of retail environments.
 
 ## Overview
 
 This repository contains:
-1. **Dataset Creation Tools**: Merge multiple retail datasets into a unified format
-2. **Training Pipeline**: Train custom YOLO models with checkpoint resuming
-3. **Monitoring System**: Real-time theft detection and alert system
-4. **Pre-trained Models**: Ready-to-use models for retail object detection
+1. **Monitoring System**: Real-time theft detection and alert system using YOLOv8n-OI7
+2. **Pre-configured Classes**: Uses Open Images V7 classes for merchandise and person detection
+3. **Audio Alert System**: Configurable audio announcements for theft deterrence
+4. **Training Tools**: Optional custom training pipeline for specialized datasets
 
 ## Project Structure
 
 ```
 anti-theft-deter/
 ├── main.py                 # Real-time monitoring system
-├── train_yolo.py          # YOLO training script with checkpointing
-├── create_custom_dataset.py # Dataset merger (if available)
-├── datasets/              # Training datasets
-│   ├── custom_data/       # Merged dataset (219 classes)
-│   ├── shopcart/          # Shopping cart detection dataset
-│   ├── grocery2/          # Vegetables and produce dataset
-│   └── grozi/             # Retail products dataset (120 classes)
+├── test_detection.py       # Detection testing and debugging script
+├── train_yolo.py          # Optional custom training script
 ├── videos/                # Test video files
-├── audio/                 # Audio alert files
-└── yolo11n.pt            # Pre-trained YOLO model
+├── audio/                 # Audio alert files (announcement.wav)
+├── yolov8n-oi7.pt         # YOLOv8n model trained on Open Images V7
+└── README.md              # This documentation
 ```
 
-## Dataset Information
+## Model Information
 
-### Merged Custom Dataset
+### YOLOv8n-OI7 Model
 
-The system uses a comprehensive dataset with 219 classes:
+The system uses a pre-trained YOLOv8n model trained on Open Images V7 dataset:
 
-| Dataset Component | Classes | Images | Description |
-|------------------|---------|---------|-------------|
-| **COCO** | 80 | 0 | Preserved pretrained classes |
-| **Shopcart** | 1 | 215 | Shopping cart detection |
-| **Grocery2** | 18 | 1,731 | Vegetables and produce |
-| **Grozi** | 120 | 11,194 | Retail products |
-| **TOTAL** | **219** | **13,140** | Complete merged dataset |
+| Model Component | Classes | Description |
+|------------------|---------|-------------|
+| **YOLOv8n-OI7** | 600+ | Pre-trained on Open Images V7 dataset |
+| **Person Detection** | 1 | Class ID: 381 (configurable) |
+| **Merchandise Detection** | 200+ | Pre-configured retail item class IDs |
 
-### Class Categories
+### Configured Class Categories
 
-1. **COCO Classes (0-79)**: Standard objects (person, bicycle, car, etc.)
-2. **Shopcart Classes (80)**: Shopping cart detection
-3. **Grocery2 Classes (81-98)**: Fresh produce (Asparagus, Brinjal, Cabbage, etc.)
-4. **Grozi Classes (99-218)**: Retail products (cleaning supplies, snacks, beverages, etc.)
+1. **Person Classes**: Class ID 381 (expandable list in `person_ids`)
+2. **Merchandise Classes**: 200+ retail item class IDs from Open Images V7
+   - Food items, beverages, containers, bags, electronics
+   - Clothing, accessories, household items, tools
+   - Personal care products, toys, sports equipment
+
+### Class Configuration
+
+The system uses pre-defined class ID lists in `main.py`:
+- `person_ids = [381]` - Person detection classes
+- `merch_ids = [10, 16, 17, ...]` - 200+ merchandise class IDs from Open Images V7
 
 ## Installation
 
@@ -60,7 +61,7 @@ The system uses a comprehensive dataset with 219 classes:
 ### Install Dependencies
 
 ```bash
-pip install ultralytics opencv-python PyYAML Pillow requests numpy
+pip install ultralytics opencv-python numpy
 ```
 
 ### Additional Windows Dependencies
@@ -71,67 +72,17 @@ For audio alerts on Windows:
 # No additional installation required
 ```
 
+### Model Download
+
+The system uses YOLOv8n-OI7 model:
+```bash
+# The model will be automatically downloaded when first used
+# Or manually download: yolov8n-oi7.pt
+```
+
 ## Usage
 
-### 1. Training Custom Models
-
-#### Configuration-Based Training
-
-The training script uses a simple configuration approach. Edit the CONFIG section in `train_yolo.py`:
-
-```python
-CONFIG = {
-    # Dataset path - Path to your custom dataset YAML file
-    "data_yaml_path": "datasets/custom_data/data.yaml",
-    
-    # Training parameters
-    "epochs": 100,              # Number of training epochs
-    "imgsz": 640,               # Input image size (640, 1280, etc.)
-    "batch_size": 16,           # Batch size (reduce if memory errors)
-    "device": "cpu",            # Device: "auto", "cpu", "0" (GPU 0), etc.
-    
-    # Checkpoint settings (for resuming training)
-    "checkpoint_dir": "checkpoints",  # Directory for checkpoints (None to disable)
-    
-    # Model settings
-    "model_name": "yolo11n.pt", # YOLO model variant
-}
-```
-
-#### Run Training
-
-```bash
-python train_yolo.py
-```
-
-#### Training Features
-
-- **Automatic Checkpoint Resuming**: Training automatically resumes from the last checkpoint if available
-- **Custom Model Saving**: Best model is automatically saved as `yolo_custom.pt` in the root directory
-- **Progress Tracking**: Clear feedback on training progress and checkpoint status
-- **Flexible Configuration**: Easy parameter adjustment through CONFIG dictionary
-
-#### Training Workflow
-
-1. **First Run**: Starts from epoch 0 with pretrained weights
-   ```
-   Checkpoint directory ready: checkpoints
-   No existing checkpoint found, will start from epoch 0
-   Starting training from epoch 0 with yolo11n.pt pretrained weights
-   ```
-
-2. **Subsequent Runs**: Automatically resumes from checkpoint
-   ```
-   Found existing checkpoint: checkpoints/last.pt
-   Resuming training from checkpoint: checkpoints/last.pt
-   ```
-
-3. **Completion**: Saves custom model for easy access
-   ```
-   Best model saved as: yolo_custom.pt
-   ```
-
-### 2. Real-Time Monitoring System
+### 1. Real-Time Monitoring System (Primary Use)
 
 #### Run the Monitoring System
 
@@ -142,247 +93,297 @@ python main.py
 #### System Features
 
 - **Multi-threaded Processing**: Efficient real-time video processing
-- **Fisheye Camera Support**: Handles wide-angle surveillance cameras
-- **Object Detection**: Detects people and retail merchandise
+- **Open Images V7 Detection**: Uses pre-trained YOLOv8n-OI7 model with 600+ classes
+- **Object Detection**: Detects people and retail merchandise using Open Images classes
 - **Alert System**: Audio and visual alerts for suspicious activity
-- **Bathroom Monitoring**: Specialized monitoring for high-risk areas
-- **Abandoned Item Detection**: Tracks items left behind by customers
+- **Bathroom Zone Monitoring**: Configurable zone monitoring for high-risk areas
+- **Debug Mode**: Real-time class detection debugging and verification
 
 #### Monitoring Capabilities
 
-- Person detection and tracking
-- Merchandise detection (219 product categories)
-- Shopping cart monitoring
-- Suspicious behavior alerts
-- Real-time video display with bounding boxes
-- Audio announcements for detected events
+- Person detection using Open Images V7 classes
+- Merchandise detection (200+ retail item categories from Open Images V7)
+- Configurable detection zones (bathroom monitoring)
+- Real-time audio announcements for detected events
+- Visual bounding boxes with class labels
+- Debug output for detection verification
 
-### 3. Model Inference
+#### Configuration
 
-#### Using the Custom Trained Model
+Edit `main.py` to customize:
+
+```python
+# Person class IDs (expandable list)
+person_ids = [381]  # Add more person class IDs if needed
+
+# Merchandise class IDs (200+ pre-configured)
+merch_ids = [10, 16, 17, 21, 39, ...]  # Open Images V7 retail classes
+
+# Bathroom zone coordinates (relative 0-1)
+bathroom_zone = {
+    'x1': 0.01, 'y1': 0.01,  # Top-left corner
+    'x2': 0.99, 'y2': 0.6    # Bottom-right corner
+}
+```
+
+### 2. Detection Testing and Debugging
+
+#### Test Detection System
+
+```bash
+python test_detection.py
+```
+
+This script helps verify:
+- Model loading and inference
+- Class detection accuracy
+- Person and merchandise detection
+- Debug output for troubleshooting
+
+### 3. Model Inference (Advanced)
+
+#### Using the YOLOv8n-OI7 Model
 
 ```bash
 # Run inference on images
-yolo predict model=yolo_custom.pt source=path/to/images
+yolo predict model=yolov8n-oi7.pt source=path/to/images
 
 # Run inference on video
-yolo predict model=yolo_custom.pt source=path/to/video.mp4
+yolo predict model=yolov8n-oi7.pt source=path/to/video.mp4
 
 # Run inference on webcam
-yolo predict model=yolo_custom.pt source=0
-```
-
-#### Using Pre-trained Models
-
-```bash
-# Use the base YOLO11n model
-yolo predict model=yolo11n.pt source=path/to/images
+yolo predict model=yolov8n-oi7.pt source=0
 ```
 
 ## Configuration Options
-
-### Training Configuration
-
-Modify `train_yolo.py` CONFIG section:
-
-```python
-# Basic training settings
-"epochs": 100,              # Training duration
-"batch_size": 16,           # Memory usage control
-"imgsz": 640,               # Input resolution
-
-# Hardware settings
-"device": "auto",           # "auto", "cpu", "0", "1", etc.
-
-# Model selection
-"model_name": "yolo11n.pt", # yolo11n.pt, yolo11s.pt, yolo11m.pt, etc.
-
-# Checkpoint management
-"checkpoint_dir": "checkpoints",  # Enable automatic resuming
-```
 
 ### Monitoring Configuration
 
 Edit `main.py` for monitoring settings:
 
-- Camera input sources
-- Detection thresholds
-- Alert sensitivity
-- Audio settings
-- Display options
+```python
+# Model configuration
+model_path = "yolov8n-oi7.pt"  # YOLOv8n Open Images V7 model
+
+# Video source
+video_source = "videos/vid5.mp4"  # Video file or 0 for webcam
+
+# Detection classes
+person_ids = [381]  # Person class IDs (expandable)
+merch_ids = [10, 16, 17, ...]  # Merchandise class IDs
+
+# Detection zone
+bathroom_zone = {
+    'x1': 0.01, 'y1': 0.01,  # Top-left (relative coordinates)
+    'x2': 0.99, 'y2': 0.6    # Bottom-right (relative coordinates)
+}
+
+# Audio settings
+show_stats = False  # Show/hide statistics overlay
+stats_scale_factor = 0.2  # Scale factor for UI elements
+```
+
+### Class Configuration
+
+To add more person or merchandise classes:
+
+```python
+# Add more person-related classes
+person_ids = [381, 123, 456]  # Multiple person class IDs
+
+# Merchandise classes are pre-configured from Open Images V7
+# Edit merch_ids list to add/remove specific retail item classes
+```
 
 ## File Outputs
 
-### Training Outputs
-
-- `yolo_custom.pt`: Custom trained model (root directory)
-- `runs/detect/train/weights/best.pt`: Best model weights
-- `runs/detect/train/weights/last.pt`: Latest checkpoint
-- `checkpoints/last.pt`: Resumable checkpoint
-
 ### Monitoring Outputs
 
-- Real-time video display with detection overlays
-- Console logs of detected events
-- Audio alerts for suspicious activities
+- Real-time video display with detection overlays and bathroom zone
+- Console logs of detected events with class IDs and confidence scores
+- Audio alerts (announcement.wav) for suspicious activities
+- Debug output showing detected classes and detection statistics
+
+### Debug Information
+
+The system provides detailed debug output:
+```
+DEBUG: Person detected in zone - Class ID: 381, Conf: 0.85
+DEBUG: Merchandise detected in zone - Class ID: 125, Conf: 0.72
+DEBUG: All detected classes: [125, 381, 456, 789]
+DEBUG: Looking for person classes: [381]
+DEBUG: Looking for merchandise classes (first 10): [10, 16, 17, 21, 39, 57, 65, 67, 72, 76]...
+ANNOUNCEMENT: Attention: Merchandise is not permitted in the bathroom...
+```
 
 ## Performance Optimization
 
-### Training Performance
+### Real-time Monitoring Performance
 
-- Use GPU for faster training: `"device": "0"`
-- Adjust batch size based on available memory
-- Use larger models for better accuracy: `yolo11s.pt`, `yolo11m.pt`
-- Enable mixed precision training (automatic)
+- **GPU Acceleration**: Use CUDA-compatible GPU for faster inference
+- **Video Resolution**: Reduce input video resolution for better performance
+- **Detection Frequency**: Adjust monitoring thread sleep time (currently 1.0 seconds)
+- **Confidence Threshold**: Increase confidence threshold to reduce false positives
+- **Max Detections**: Reduce `max_det` parameter to limit processing load
 
-### Inference Performance
+### Configuration Examples
 
-- Use smaller models for real-time: `yolo11n.pt`
-- Reduce input resolution for speed: `imgsz=320`
-- Use GPU acceleration when available
-- Optimize video processing threads
+```python
+# In main.py - for better performance
+results = model.predict(
+    frame,
+    classes=self.merchandise_classes + self.person_classes,
+    conf=0.3,  # Increase from 0.1 for fewer false positives
+    verbose=False,
+    max_det=300  # Reduce from 600 for faster processing
+)
 
-## Troubleshooting
+# Adjust monitoring frequency
+time.sleep(2.0)  # Increase from 1.0 for less frequent checks
+```
 
-### Common Training Issues
+## Troubleshooting 
 
-1. **Memory Errors**: Reduce `batch_size` in CONFIG
-2. **CUDA Errors**: Set `"device": "cpu"` for CPU training
-3. **Dataset Not Found**: Check `data_yaml_path` in CONFIG
-4. **Checkpoint Errors**: Delete `checkpoints/` folder to start fresh
+### Detection Issues
 
-### Common Monitoring Issues
+1. **No Person Detections**
+   - Verify person class ID 381 is correct for YOLOv8n-OI7
+   - Add more person class IDs to `person_ids` list
+   - Check if people are visible in the video frame
+   - Run `test_detection.py` to debug
 
-1. **Camera Not Found**: Check camera index in `main.py`
-2. **Model Loading Errors**: Ensure `yolo_custom.pt` exists
-3. **Performance Issues**: Reduce video resolution or detection frequency
-4. **Audio Errors**: Check Windows audio system and winsound module
+2. **No Merchandise Detections**
+   - Verify merchandise class IDs are correct for Open Images V7
+   - Lower confidence threshold in detection
+   - Check if retail items are visible in the video frame
+   - Review debug output for detected classes
+
+3. **Model Loading Issues**
+   - Ensure `yolov8n-oi7.pt` model file exists
+   - Check internet connection for automatic model download
+   - Verify model path in `main.py` configuration
+
+### Performance Issues
+
+1. **Slow Detection**
+   - Use CPU device explicitly: `device='cpu'`
+   - Reduce video resolution
+   - Close other applications
+
+2. **Memory Issues**
+   - Reduce `max_det` parameter in prediction
+   - Use smaller input image size
+   - Monitor system memory usage
+
+### Audio Issues
+
+1. **No Audio Alerts**
+   - Check Windows audio settings
+   - Verify `announcement.wav` file exists
+   - Test with `winsound.Beep()` fallback
+
+### Debug Mode
+
+Enable debug output by running the system and checking console for:
+- Detected class IDs
+- Person/merchandise detection in zone
+- Model loading status
+- Audio alert triggers
 
 ## Advanced Usage
 
-### Custom Dataset Creation
+### Custom Training (Optional)
 
-If you have the dataset creation script:
+For specialized use cases, you can train custom models using the training script:
 
 ```bash
-python create_custom_dataset.py --output custom_data --split 0.8
+python train_yolo.py
 ```
 
-### Multi-GPU Training
-
-```python
-CONFIG = {
-    "device": "0,1",  # Use multiple GPUs
-    "batch_size": 32, # Increase batch size for multi-GPU
-}
-```
+This is optional since the system works well with the pre-trained YOLOv8n-OI7 model.
 
 ### Production Deployment
 
-1. Train model with sufficient epochs (200-500)
-2. Validate on test dataset
-3. Deploy `yolo_custom.pt` to production system
-4. Configure monitoring thresholds for environment
-5. Set up automated alert systems
+1. Download and verify `yolov8n-oi7.pt` model
+2. Configure class IDs for your specific retail environment
+3. Adjust detection zones and thresholds
+4. Set up automated alert systems
+5. Test detection accuracy with `test_detection.py`
 
 ## License and Credits
 
 This system uses:
-- Ultralytics YOLO for object detection
+- Ultralytics YOLOv8 for object detection
 - OpenCV for video processing
-- PyTorch for deep learning
-- Multiple retail datasets for comprehensive training
+- Open Images V7 dataset for pre-trained classes
+- Windows winsound for audio alerts
 
 ## Quick Start Guide
 
-### For Training a Custom Model
+### For Running the Monitoring System
 
 1. **Prepare Environment**:
    ```bash
-   pip install ultralytics opencv-python PyYAML Pillow requests numpy
+   pip install ultralytics opencv-python numpy
    ```
 
-2. **Configure Training**:
-   Edit `train_yolo.py` CONFIG section with your desired settings
+2. **Download Model**:
+   The YOLOv8n-OI7 model will be automatically downloaded on first use
 
-3. **Start Training**:
+3. **Configure Detection**:
+   Edit `main.py` to customize:
+   - Video source (file or webcam)
+   - Detection classes (person_ids, merch_ids)
+   - Bathroom zone coordinates
+
+4. **Test Detection**:
    ```bash
-   python train_yolo.py
+   python test_detection.py
    ```
 
-4. **Monitor Progress**:
-   Training will automatically resume if interrupted
-
-5. **Use Trained Model**:
-   Your custom model will be saved as `yolo_custom.pt`
-
-### For Running the Monitoring System
-
-1. **Ensure Model Exists**:
-   Either train a custom model or use the pre-trained `yolo11n.pt`
-
-2. **Configure Camera**:
-   Edit camera settings in `main.py` if needed
-
-3. **Run Monitoring**:
+5. **Run Monitoring**:
    ```bash
    python main.py
    ```
 
-4. **Monitor Output**:
+6. **Monitor Output**:
    Watch the video feed and listen for audio alerts
 
-## Dataset File Structure
+## System Output Examples
 
-### Custom Data Format
+### Console Output
 
 ```
-datasets/custom_data/
-├── data.yaml              # Dataset configuration
-├── train/
-│   ├── images/            # Training images (10,512 files)
-│   │   ├── grozi_1_video1.png
-│   │   ├── shopcart_image1.jpg
-│   │   └── grocery2_image1.jpg
-│   └── labels/            # Training labels (10,512 files)
-│       ├── grozi_1_video1.txt
-│       ├── shopcart_image1.txt
-│       └── grocery2_image1.txt
-└── val/
-    ├── images/            # Validation images (2,628 files)
-    └── labels/            # Validation labels (2,628 files)
+Loading model: yolov8n-oi7.pt
+Model loaded successfully: <class 'ultralytics.models.yolo.model.YOLO'>
+DEBUG: Person detected in zone - Class ID: 381, Conf: 0.85
+DEBUG: Merchandise detected in zone - Class ID: 125, Conf: 0.72
+ANNOUNCEMENT: Attention: Merchandise is not permitted in the bathroom...
+DEBUG: All detected classes: [125, 381, 456, 789]
 ```
 
-### Label Format
+### Visual Output
 
-YOLO format labels (one per line):
-```
-class_id x_center y_center width height
-```
-
-Example:
-```
-0 0.5 0.5 0.3 0.4    # person at center, 30% width, 40% height
-99 0.2 0.3 0.1 0.15  # grozi product at 20% x, 30% y
-```
-
+- Real-time video with bounding boxes
+- Yellow bathroom zone rectangle
+- Green boxes for people (Class 381)
+- Red boxes for merchandise (Various class IDs)
+- Class labels with confidence scores
 ## Model Performance
 
-### Training Metrics
+### YOLOv8n-OI7 Specifications
 
-After training completion, you'll see metrics like:
-- **mAP@0.5**: Mean Average Precision at IoU threshold 0.5
-- **mAP@0.5:0.95**: Mean Average Precision across IoU thresholds 0.5-0.95
-- **Box Loss**: Bounding box regression loss
-- **Class Loss**: Classification loss
-- **DFL Loss**: Distribution Focal Loss
+- **Model Size**: ~6MB (YOLOv8n architecture)
+- **Classes**: 600+ from Open Images V7 dataset
+- **Input Size**: 640x640 pixels
+- **Framework**: PyTorch/Ultralytics
 
 ### Inference Speed
 
 Model performance varies by hardware:
-- **CPU**: ~50-100ms per image (yolo11n.pt)
-- **GPU (RTX 3080)**: ~5-10ms per image (yolo11n.pt)
-- **GPU (RTX 4090)**: ~3-7ms per image (yolo11n.pt)
+- **CPU**: ~50-100ms per image (YOLOv8n-OI7)
+- **GPU (RTX 3080)**: ~5-10ms per image (YOLOv8n-OI7)
+- **GPU (RTX 4090)**: ~3-7ms per image (YOLOv8n-OI7)
 
 ## System Requirements
 
@@ -390,29 +391,32 @@ Model performance varies by hardware:
 
 - **CPU**: Intel i5 or AMD Ryzen 5 (4+ cores)
 - **RAM**: 8GB minimum, 16GB recommended
-- **Storage**: 10GB free space for datasets
+- **Storage**: 2GB free space for model and videos
 - **Python**: 3.8 or higher
+- **OS**: Windows (for winsound audio support)
 
 ### Recommended Requirements
 
 - **CPU**: Intel i7 or AMD Ryzen 7 (8+ cores)
-- **GPU**: NVIDIA RTX 3060 or better (6GB+ VRAM)
-- **RAM**: 32GB for large batch training
-- **Storage**: SSD with 50GB+ free space
+- **RAM**: 16GB for smooth real-time processing
+- **Storage**: SSD with 10GB+ free space
+- **Webcam**: USB camera for live monitoring
 
 ### GPU Support
 
 CUDA-compatible NVIDIA GPUs are recommended for:
-- Faster training (10-50x speedup)
-- Real-time inference
-- Larger batch sizes
-- Higher resolution processing
+- Faster inference (5-10x speedup)
+- Real-time processing of high-resolution video
+- Multiple camera streams
+- Reduced CPU usage
 
 ## Support
 
 For issues and questions:
-1. Check the troubleshooting section
-2. Verify all dependencies are installed
-3. Ensure dataset paths are correct
-4. Check hardware compatibility (GPU/CPU)
-5. Review console output for specific error messages
+1. Check the troubleshooting section above
+2. Run `test_detection.py` to debug detection issues
+3. Verify all dependencies are installed correctly
+4. Check model file exists (`yolov8n-oi7.pt`)
+5. Review console debug output for detection information
+6. Ensure video source is accessible
+7. Check hardware compatibility (GPU/CPU)
