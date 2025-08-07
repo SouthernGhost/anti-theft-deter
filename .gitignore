@@ -1,6 +1,6 @@
 announcement.wav
 announcement.mp3
-test.py
+*test*.py
 yolo11s.pt
 videos/
 demo*.py
@@ -8,3 +8,7 @@ __pycache__
 datasets/
 runs/
 yolo11n.pt
+extract_imgs.py
+custom_class_split.py
+create_custom_dataset.py
+yolo*.pt
