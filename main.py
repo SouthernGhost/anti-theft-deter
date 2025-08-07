@@ -11,7 +11,20 @@ import winsound  # For buzzer sound on Windows
 
 # Audio announcements using winsound
 
-
+merch_ids = [10, 16, 17, 21, 39, 57, 65, 67, 72, 76, 78, 82, 84, 85, 86, 89, 92,
+                93, 96, 105, 108, 119, 120, 121, 125, 126, 132, 133, 135, 139, 140,
+                143, 146, 151, 154, 166, 171, 172, 177, 178, 182, 185, 186, 199, 200,
+                204, 207, 210, 211, 213, 217, 219, 223, 226, 227, 229, 233, 237, 238,
+                244, 246, 256, 258, 273, 278, 286, 287, 289, 292, 293, 295, 296, 299,
+                301, 304, 306, 314, 318, 323, 328, 332, 333, 338, 339, 344, 345, 347,
+                351, 356, 365, 367, 368, 372, 373, 374, 375, 377, 378, 380, 385, 386,
+                389, 390, 391, 392, 394, 395, 396, 399, 400, 404, 406, 407, 419, 420,
+                423, 430, 431, 432, 433, 434, 436, 438, 441, 445, 448, 449, 451, 459,
+                461, 468, 475, 480, 481, 483, 486, 495, 496, 501, 503, 505, 507, 516,
+                517, 518, 521, 523, 524, 526, 528, 529, 535, 537, 539, 540, 542, 545,
+                547, 550, 559, 560, 562, 565, 566, 570, 571, 573, 575, 576, 577,
+                579, 584, 589, 590, 591, 592, 593, 595, 598]
+person_ids = [63, 216, 322, 381, 594]  
 class BathroomMonitor:
     """
     Multi-threaded bathroom entrance monitoring system with fisheye camera support.
@@ -47,8 +60,8 @@ class BathroomMonitor:
         # Removed DeepSORT tracker - using simple detection only
 
         # Merchandise classes (bags, backpacks, handbags, suitcases, etc.)
-        self.merchandise_classes = [24,25,26,27,28,29,39,49,63,65,67,76]  # Common merchandise items
-        self.person_class = 0  # Person class in COCO dataset
+        self.merchandise_classes = merch_ids
+        self.person_classes = person_ids  # Person class IDs in Open Images V7
 
         # Bathroom entrance zone (default to center area)
         if bathroom_zone is None:
@@ -216,9 +229,10 @@ class BathroomMonitor:
             # Run YOLO detection
             results = self.model.predict(
                 frame,
-                classes=self.merchandise_classes + [self.person_class],
-                conf=0.5,
-                verbose=False
+                classes=self.merchandise_classes + self.person_classes,
+                conf=0.1,
+                verbose=False,
+                max_det=600
             )
 
             # Store current results for monitoring thread
@@ -284,6 +298,9 @@ class BathroomMonitor:
             people_in_zone = []
             merchandise_in_zone = []
 
+            # Debug: Track detected classes
+            detected_classes = set()
+
             for result in self.current_results:
                 if result.boxes is None:
                     continue
@@ -292,6 +309,9 @@ class BathroomMonitor:
                     x1, y1, x2, y2 = box.xyxy[0].tolist()
                     cls = int(box.cls[0])
                     conf = float(box.conf[0])
+
+                    # Debug: Track all detected classes
+                    detected_classes.add(cls)
 
                     # Calculate center point
                     center_x = int((x1 + x2) / 2)
@@ -302,10 +322,23 @@ class BathroomMonitor:
                               zone_y1 <= center_y <= zone_y2)
 
                     if in_zone:
-                        if cls == self.person_class:
+                        if cls in self.person_classes:
                             people_in_zone.append((x1, y1, x2, y2, conf))
+                            #print(f"DEBUG: Person detected in zone - Class ID: {cls}, Conf: {conf:.2f}")
                         elif cls in self.merchandise_classes:
                             merchandise_in_zone.append((x1, y1, x2, y2, conf, cls))
+                            #print(f"DEBUG: Merchandise detected in zone - Class ID: {cls}, Conf: {conf:.2f}")
+
+            # Debug: Print detected classes every few seconds
+            if hasattr(self, '_last_debug_time'):
+                if time.time() - self._last_debug_time > 5.0:  # Every 5 seconds
+                    if detected_classes:
+                        #print(f"DEBUG: All detected classes: {sorted(detected_classes)}")
+                        #print(f"DEBUG: Looking for person classes: {self.person_classes}")
+                        #print(f"DEBUG: Looking for merchandise classes (first 10): {self.merchandise_classes[:10]}...")
+                        self._last_debug_time = time.time()
+            else:
+                self._last_debug_time = time.time()
 
             # Check for people with merchandise in zone and trigger alarm
             if people_in_zone and merchandise_in_zone and self._should_announce():
@@ -319,6 +352,18 @@ class BathroomMonitor:
     def _annotate_frame(self, frame, results):
         """Annotate frame with detection boxes and labels"""
         annotated_frame = frame.copy()
+
+        # Draw bathroom zone
+        h, w = frame.shape[:2]
+        zone_x1 = int(self.bathroom_zone['x1'] * w)
+        zone_y1 = int(self.bathroom_zone['y1'] * h)
+        zone_x2 = int(self.bathroom_zone['x2'] * w)
+        zone_y2 = int(self.bathroom_zone['y2'] * h)
+
+        cv2.rectangle(annotated_frame, (zone_x1, zone_y1), (zone_x2, zone_y2),
+                     (255, 255, 0), max(1, int(2 * self.scale_factor)))
+        cv2.putText(annotated_frame, "Bathroom Zone", (zone_x1, zone_y1 - 10),
+                   cv2.FONT_HERSHEY_SIMPLEX, self.text_scale, (255, 255, 0), self.font_thickness)
 
         for result in results:
             if result.boxes is None:
@@ -334,14 +379,13 @@ class BathroomMonitor:
                 conf = float(box.conf[0])
 
                 # Choose color based on class
-                if cls == self.person_class:
+                if cls in self.person_classes:
                     color = (0, 255, 0)  # Green for person
                     label = f"Person {conf:.2f}"
                 elif cls in self.merchandise_classes:
                     color = (0, 0, 255)  # Red for merchandise
-                    class_names = {24: "Backpack", 25: "Umbrella", 26: "Handbag",
-                                 27: "Tie", 28: "Suitcase", 29: "Frisbee"}
-                    label = f"{class_names.get(cls, 'Item')} {conf:.2f}"
+                    # Generic label for Open Images V7 merchandise classes
+                    label = f"Item-{cls} {conf:.2f}"
                 else:
                     color = (255, 0, 0)  # Blue for other
                     label = f"Class {cls} {conf:.2f}"
@@ -621,7 +665,7 @@ class BathroomMonitor:
 def main():
     """Main function to run the bathroom monitoring system"""
     # Configuration
-    model_path = "yolo11n.pt"  # Path to YOLO model (will download if not exists)
+    model_path = "yolov8n-oiv7.pt"  # Path to YOLO model (will download if not exists)
     video_source = "videos/vid5.mp4"  # Use 0 for webcam, or path to video file
 
     # Custom bathroom zone (optional)
