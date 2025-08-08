@@ -29,7 +29,7 @@ from ultralytics import YOLO
 CONFIG = {
     # Dataset path - Path to your custom dataset YAML file
     # Change this to point to your dataset (created by create_custom_dataset.py)
-    "data_yaml_path": "datasets/custom_data/data.yaml",
+    "data_yaml_path": "datasets/ac_yolo/data.yaml",
 
     # Training parameters
     "epochs": 100,              # Number of training epochs
@@ -93,6 +93,10 @@ def train_model(data_yaml_path, epochs=100, imgsz=640, batch_size=16, checkpoint
                 imgsz=imgsz,
                 batch=batch_size,
                 device=device,
+                freeze=['backbone'],
+                classes=[80],
+                augment=True,
+                dropout=0.25,
                 resume=True
             )
         else:
@@ -107,6 +111,10 @@ def train_model(data_yaml_path, epochs=100, imgsz=640, batch_size=16, checkpoint
                 epochs=epochs,
                 imgsz=imgsz,
                 batch=batch_size,
+                freeze=[10],
+                #classes=[80],
+                augment=True,
+                dropout=0.25,
                 device=device
             )
 
