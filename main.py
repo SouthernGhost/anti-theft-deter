@@ -7,70 +7,63 @@ import numpy as np
 from datetime import datetime
 import winsound  # For buzzer sound on Windows
 
-# Remove DeepSORT - using simple detection only
+from config import CONFIG
 
-# Audio announcements using winsound
+merch_ids = CONFIG["merchandise_classes"]
+person_ids = CONFIG["person_classes"]
+CONFIG['stream_mode'] = False
+CONFIG['video_source'] = "videos/vid7.mp4"
 
-merch_ids = [10, 16, 17, 21, 39, 57, 65, 67, 72, 76, 78, 82, 84, 85, 86, 89, 92,
-                93, 96, 105, 108, 119, 120, 121, 125, 126, 132, 133, 135, 139, 140,
-                143, 146, 151, 154, 166, 171, 172, 177, 178, 182, 185, 186, 199, 200,
-                204, 207, 210, 211, 213, 217, 219, 223, 226, 227, 229, 233, 237, 238,
-                244, 246, 256, 258, 273, 278, 286, 287, 289, 292, 293, 295, 296, 299,
-                301, 304, 306, 314, 318, 323, 328, 332, 333, 338, 339, 344, 345, 347,
-                351, 356, 365, 367, 368, 372, 373, 374, 375, 377, 378, 380, 385, 386,
-                389, 390, 391, 392, 394, 395, 396, 399, 400, 404, 406, 407, 419, 420,
-                423, 430, 431, 432, 433, 434, 436, 438, 441, 445, 448, 449, 451, 459,
-                461, 468, 475, 480, 481, 483, 486, 495, 496, 501, 503, 505, 507, 516,
-                517, 518, 521, 523, 524, 526, 528, 529, 535, 537, 539, 540, 542, 545,
-                547, 550, 559, 560, 562, 565, 566, 570, 571, 573, 575, 576, 577,
-                579, 584, 589, 590, 591, 592, 593, 595, 598]
-person_ids = [63, 216, 322, 381, 594]  
 class BathroomMonitor:
     """
-    Multi-threaded bathroom entrance monitoring system with fisheye camera support.
-    Detects customers approaching bathrooms, scans for merchandise, and tracks abandoned items.
+    Multi-threaded bathroom entrance monitoring system with overlap-based zone detection.
+    Detects merchandise in bathroom zones and triggers immediate audio alerts.
 
     Features:
-    - Real-time YOLO object detection
-    - Configurable bathroom zone monitoring
+    - Real-time YOLO object detection using YOLOv8n-OI7
+    - Overlap-based zone monitoring (triggers on any bounding box intersection)
+    - Immediate alerts for merchandise detection (regardless of person presence)
     - Audio alerts using winsound (announcement.wav file or buzzer fallback)
     - Multi-threaded architecture for smooth performance
     - UI scaling based on video resolution
     - Configurable statistics overlay with custom scaling
+    - IP camera stream support with automatic reconnection
+    - Stream error handling and recovery
     """
 
-    def __init__(self, model_path: str, source=0, bathroom_zone=None, show_stats=True, stats_scale_factor=1.0):
-        # Video capture setup
-        self.source = source
-        self.cap = cv2.VideoCapture(source)
+    def __init__(self, config=None):
+        """Initialize with configuration dictionary"""
+        # Use provided config or default CONFIG
+        self.config = config if config is not None else CONFIG
 
-        # Verify video source is accessible
-        if not self.cap.isOpened():
-            raise ValueError(f"Cannot open video source: {source}")
+        # Stream configuration
+        self.stream_mode = self.config["stream_mode"]
+        self.source = self.config["ip_camera_url"] if self.stream_mode else self.config["video_source"]
+        self.cap = None
+        self.stream_reconnect_attempts = 0
+        self.max_reconnect_attempts = self.config["max_reconnect_attempts"]
+        self.reconnect_delay = self.config["reconnect_delay"]
+
+        # Initialize video capture with error handling
+        self._initialize_video_capture()
 
         # Set camera properties for fisheye if needed (only for camera sources)
-        if isinstance(source, int):
+        if isinstance(self.source, int):
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
             self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
             self.cap.set(cv2.CAP_PROP_FPS, 30)
 
         # YOLO model for object detection
-        self.model = YOLO(model_path)
-
-        # Removed DeepSORT tracker - using simple detection only
+        self.model = YOLO(self.config["model_path"])
 
         # Merchandise classes (bags, backpacks, handbags, suitcases, etc.)
-        self.merchandise_classes = merch_ids
-        self.person_classes = person_ids  # Person class IDs in Open Images V7
+        self.merchandise_classes = self.config["merchandise_classes"]
+        self.person_classes = self.config["person_classes"]
 
-        # Bathroom entrance zone (default to center area)
-        if bathroom_zone is None:
-            self.bathroom_zone = {
-                'x1': 0.3, 'y1': 0.2,  # Relative coordinates (0-1)
-                'x2': 0.7, 'y2': 0.8
-            }
-        else:
-            self.bathroom_zone = bathroom_zone
+        # Bathroom entrance zone
+        self.bathroom_zone = self.config["bathroom_zone"]
+
+        # Display toggles are now handled directly in annotation function
 
         # Threading components
         self.frame_queue = queue.Queue(maxsize=20)
@@ -97,8 +90,8 @@ class BathroomMonitor:
         self.min_announcement_interval = 2.0  # Minimum 2 seconds between announcements
 
         # Stats UI configuration
-        self.show_stats = show_stats
-        self.stats_scale_factor = stats_scale_factor
+        self.show_stats = self.config["show_stats"]
+        self.stats_scale_factor = self.config["stats_scale_factor"]
 
         # UI scaling factors (will be set based on video resolution)
         self.scale_factor = 0.5
@@ -114,6 +107,85 @@ class BathroomMonitor:
             'abandoned_items': 0,
             'theft_deterred': 0
         }
+
+    def _initialize_video_capture(self):
+        """Initialize video capture with stream mode support and error handling"""
+        if self.stream_mode:
+            print(f"🔄 Stream mode enabled - attempting to connect to: {self.source}")
+            self._connect_to_stream()
+        else:
+            print(f"📹 Initializing video source: {self.source}")
+            self.cap = cv2.VideoCapture(self.source)
+
+            # Verify video source is accessible
+            if not self.cap.isOpened():
+                raise ValueError(f"Cannot open video source: {self.source}")
+
+            # Set camera properties for fisheye if needed (only for camera sources)
+            if isinstance(self.source, int):
+                self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+                self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+                self.cap.set(cv2.CAP_PROP_FPS, 30)
+
+            print("✅ Video source initialized successfully")
+
+    def _connect_to_stream(self):
+        """Connect to IP camera stream with retry logic"""
+        while self.stream_reconnect_attempts < self.max_reconnect_attempts:
+            try:
+                print(f"🔄 Attempting to connect to stream (attempt {self.stream_reconnect_attempts + 1}/{self.max_reconnect_attempts})")
+
+                # Release existing capture if any
+                if self.cap is not None:
+                    self.cap.release()
+
+                # Try to connect to stream
+                self.cap = cv2.VideoCapture(self.source)
+
+                # Test if we can read a frame
+                if self.cap.isOpened():
+                    ret, frame = self.cap.read()
+                    if ret and frame is not None:
+                        print("✅ Successfully connected to stream")
+                        self.stream_reconnect_attempts = 0  # Reset counter on success
+                        return
+                    else:
+                        print("⚠️  Stream opened but cannot read frames")
+                else:
+                    print("⚠️  Cannot open stream")
+
+                self.stream_reconnect_attempts += 1
+
+                if self.stream_reconnect_attempts < self.max_reconnect_attempts:
+                    print(f"⏳ Waiting {self.reconnect_delay} seconds before retry...")
+                    time.sleep(self.reconnect_delay)
+
+            except Exception as e:
+                print(f"❌ Stream connection error: {e}")
+                self.stream_reconnect_attempts += 1
+
+                if self.stream_reconnect_attempts < self.max_reconnect_attempts:
+                    print(f"⏳ Waiting {self.reconnect_delay} seconds before retry...")
+                    time.sleep(self.reconnect_delay)
+
+        # If we get here, all attempts failed
+        raise ConnectionError(f"Failed to connect to stream after {self.max_reconnect_attempts} attempts")
+
+    def _check_stream_health(self):
+        """Check if stream is still healthy and reconnect if needed"""
+        if not self.stream_mode:
+            return True
+
+        if self.cap is None or not self.cap.isOpened():
+            print("🔄 Stream disconnected, attempting to reconnect...")
+            try:
+                self._connect_to_stream()
+                return True
+            except ConnectionError:
+                print("❌ Stream reconnection failed, shutting down...")
+                return False
+
+        return True
 
     def start(self):
         """Start all monitoring threads"""
@@ -189,23 +261,68 @@ class BathroomMonitor:
         self._print_stats()
 
     def _capture_frames(self):
-        """Thread function: Capture frames from fisheye camera"""
+        """Thread function: Capture frames from camera/video/stream with error handling"""
+        consecutive_failures = 0
+        max_consecutive_failures = 10
+
         while self.running:
-            if not self.cap.isOpened():
-                print("Error: Camera not accessible")
+            # Check stream health for IP cameras
+            if self.stream_mode and not self._check_stream_health():
+                print("❌ Stream health check failed, stopping capture...")
+                self.stop()
                 break
+
+            if not self.cap.isOpened():
+                print("❌ Video capture not accessible")
+                if self.stream_mode:
+                    print("🔄 Attempting stream reconnection...")
+                    if not self._check_stream_health():
+                        self.stop()
+                        break
+                else:
+                    break
 
             ret, frame = self.cap.read()
             if not ret:
-                # If video file, restart from beginning
-                if isinstance(self.source, str):
-                    print("End of video reached, restarting...")
+                consecutive_failures += 1
+                print(f"⚠️  Failed to read frame (attempt {consecutive_failures}/{max_consecutive_failures})")
+
+                if self.stream_mode:
+                    # For streams, try to reconnect
+                    print("🔄 Stream read failed, attempting reconnection...")
+                    if not self._check_stream_health():
+                        print("❌ Stream reconnection failed, stopping...")
+                        self.stop()
+                        break
+                    else:
+                        consecutive_failures = 0  # Reset on successful reconnection
+                        continue
+
+                elif isinstance(self.source, str) and not self.stream_mode:
+                    # If video file, restart from beginning
+                    print("📹 End of video reached, restarting...")
                     self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                     ret, frame = self.cap.read()
 
-                if not ret:
-                    print("Error: Failed to read frame")
-                    break
+                    if ret:
+                        consecutive_failures = 0  # Reset on success
+                    else:
+                        print("❌ Failed to restart video file")
+                        if consecutive_failures >= max_consecutive_failures:
+                            print("❌ Too many consecutive failures, stopping...")
+                            self.stop()
+                            break
+                        continue
+                else:
+                    # For webcam or other sources
+                    if consecutive_failures >= max_consecutive_failures:
+                        print("❌ Too many consecutive failures, stopping...")
+                        self.stop()
+                        break
+                    time.sleep(0.1)  # Brief pause before retry
+                    continue
+            else:
+                consecutive_failures = 0  # Reset on successful frame read
 
             # Store current frame for other threads
             self.current_frame = frame.copy()
@@ -230,9 +347,9 @@ class BathroomMonitor:
             results = self.model.predict(
                 frame,
                 classes=self.merchandise_classes + self.person_classes,
-                conf=0.1,
+                conf=self.config["confidence_threshold"],
                 verbose=False,
-                max_det=600
+                max_det=self.config["max_detections"]
             )
 
             # Store current results for monitoring thread
@@ -279,7 +396,8 @@ class BathroomMonitor:
                 self._print_stats()
 
     def _monitor_bathroom_zone(self):
-        """Thread function: Monitor bathroom zone for people with merchandise using simple detection"""
+        """Thread function: Monitor bathroom zone for merchandise using overlap detection.
+        Triggers alarms whenever merchandise is detected in zone, regardless of person detection."""
         while self.running:
             if self.current_frame is None or self.current_results is None:
                 time.sleep(0.1)
@@ -313,21 +431,19 @@ class BathroomMonitor:
                     # Debug: Track all detected classes
                     detected_classes.add(cls)
 
-                    # Calculate center point
-                    center_x = int((x1 + x2) / 2)
-                    center_y = int((y1 + y2) / 2)
-
-                    # Check if in bathroom zone
-                    in_zone = (zone_x1 <= center_x <= zone_x2 and
-                              zone_y1 <= center_y <= zone_y2)
+                    # Check if bounding box overlaps with bathroom zone
+                    # Overlap occurs if boxes intersect (any part of detection box touches zone)
+                    # Logic: box1 overlaps box2 if (x1 < x2_zone AND x2 > x1_zone AND y1 < y2_zone AND y2 > y1_zone)
+                    in_zone = (x1 < zone_x2 and x2 > zone_x1 and
+                              y1 < zone_y2 and y2 > zone_y1)
 
                     if in_zone:
                         if cls in self.person_classes:
                             people_in_zone.append((x1, y1, x2, y2, conf))
-                            #print(f"DEBUG: Person detected in zone - Class ID: {cls}, Conf: {conf:.2f}")
+                            #print(f"DEBUG: Person detected overlapping zone - Class ID: {cls}, Conf: {conf:.2f}")
                         elif cls in self.merchandise_classes:
                             merchandise_in_zone.append((x1, y1, x2, y2, conf, cls))
-                            #print(f"DEBUG: Merchandise detected in zone - Class ID: {cls}, Conf: {conf:.2f}")
+                            #print(f"DEBUG: Merchandise detected overlapping zone - Class ID: {cls}, Conf: {conf:.2f}")
 
             # Debug: Print detected classes every few seconds
             if hasattr(self, '_last_debug_time'):
@@ -340,30 +456,32 @@ class BathroomMonitor:
             else:
                 self._last_debug_time = time.time()
 
-            # Check for people with merchandise in zone and trigger alarm
-            if people_in_zone and merchandise_in_zone and self._should_announce():
+            # Check for merchandise in zone and trigger alarm (regardless of person detection)
+            if merchandise_in_zone and self._should_announce():
                 self._make_announcement(len(merchandise_in_zone))
                 self.stats['merchandise_detected'] += len(merchandise_in_zone)
                 self.stats['announcements_made'] += 1
-                self.stats['customers_scanned'] += len(people_in_zone)
+                # Count people if detected, otherwise count as 1 incident
+                self.stats['customers_scanned'] += len(people_in_zone) if people_in_zone else 1
+
+                # Enhanced debug output
+                if people_in_zone:
+                    print(f"🚨 ALARM: {len(merchandise_in_zone)} merchandise items detected with {len(people_in_zone)} people in zone")
+                else:
+                    print(f"🚨 ALARM: {len(merchandise_in_zone)} merchandise items detected in zone (no person currently detected)")
 
             time.sleep(1.0)  # Monitor every 1 second to allow audio to complete
 
     def _annotate_frame(self, frame, results):
-        """Annotate frame with detection boxes and labels"""
+        """Annotate frame with detection boxes and labels based on toggle settings"""
         annotated_frame = frame.copy()
 
-        # Draw bathroom zone
-        h, w = frame.shape[:2]
-        zone_x1 = int(self.bathroom_zone['x1'] * w)
-        zone_y1 = int(self.bathroom_zone['y1'] * h)
-        zone_x2 = int(self.bathroom_zone['x2'] * w)
-        zone_y2 = int(self.bathroom_zone['y2'] * h)
+        # Get annotation toggles
+        annotations = self.config.get("annotations", {})
+        show_persons = annotations.get("persons", True)
+        show_items = annotations.get("items", True)
 
-        cv2.rectangle(annotated_frame, (zone_x1, zone_y1), (zone_x2, zone_y2),
-                     (255, 255, 0), max(1, int(2 * self.scale_factor)))
-        cv2.putText(annotated_frame, "Bathroom Zone", (zone_x1, zone_y1 - 10),
-                   cv2.FONT_HERSHEY_SIMPLEX, self.text_scale, (255, 255, 0), self.font_thickness)
+        # Note: Bathroom zone is now drawn by _draw_bathroom_zone method
 
         for result in results:
             if result.boxes is None:
@@ -378,14 +496,31 @@ class BathroomMonitor:
                 cls = int(box.cls[0])
                 conf = float(box.conf[0])
 
-                # Choose color based on class
+                # Determine if we should show this detection based on toggles
+                should_show = False
+
+                if cls in self.person_classes:
+                    # Show person boxes if persons toggle is enabled
+                    should_show = show_persons
+
+                elif cls in self.merchandise_classes:
+                    # Show item boxes if items toggle is enabled
+                    should_show = show_items
+
+                else:
+                    # Other classes - show if items toggle is enabled
+                    should_show = show_items
+
+                if not should_show:
+                    continue
+
+                # Choose color and label based on class
                 if cls in self.person_classes:
                     color = (0, 255, 0)  # Green for person
                     label = f"Person {conf:.2f}"
                 elif cls in self.merchandise_classes:
                     color = (0, 0, 255)  # Red for merchandise
-                    # Generic label for Open Images V7 merchandise classes
-                    label = f"Item-{cls} {conf:.2f}"
+                    label = f"Item {conf:.2f}"
                 else:
                     color = (255, 0, 0)  # Blue for other
                     label = f"Class {cls} {conf:.2f}"
@@ -408,7 +543,14 @@ class BathroomMonitor:
     # Removed tracking helper methods - using simple detection only
 
     def _draw_bathroom_zone(self, frame):
-        """Draw bathroom monitoring zone on frame"""
+        """Draw bathroom monitoring zone on frame if enabled"""
+        # Check if bathroom zone annotation is enabled
+        annotations = self.config.get("annotations", {})
+        show_bathroom_zone = annotations.get("bathroom_zone", True)
+
+        if not show_bathroom_zone:
+            return  # Don't draw zone if disabled
+
         h, w = frame.shape[:2]
 
         # Convert relative coordinates to absolute
@@ -421,12 +563,13 @@ class BathroomMonitor:
         zone_thickness = max(2, int(3 * self.scale_factor))
         cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 255, 0), zone_thickness)
 
-        # Add zone label with scaled text
-        zone_text_scale = max(0.4, 0.7 * self.scale_factor)
-        zone_text_thickness = max(1, int(2 * self.scale_factor))
-        label_offset = max(5, int(10 * self.scale_factor))
-        cv2.putText(frame, "BATHROOM ZONE", (x1, y1 - label_offset),
-                   cv2.FONT_HERSHEY_SIMPLEX, zone_text_scale, (255, 255, 0), zone_text_thickness)
+        # Zone label is commented out to reduce visual clutter
+        # Uncomment below lines to show "BATHROOM ZONE" text
+        # zone_text_scale = max(0.4, 0.7 * self.scale_factor)
+        # zone_text_thickness = max(1, int(2 * self.scale_factor))
+        # label_offset = max(5, int(10 * self.scale_factor))
+        # cv2.putText(frame, "BATHROOM ZONE", (x1, y1 - label_offset),
+        #            cv2.FONT_HERSHEY_SIMPLEX, zone_text_scale, (255, 255, 0), zone_text_thickness)
 
     def _draw_stats_overlay(self, frame):
         """Draw statistics overlay on frame"""
@@ -501,15 +644,16 @@ class BathroomMonitor:
                 cls = int(box.cls[0])
                 conf = float(box.conf[0])
 
-                # Calculate center point
+                # Calculate center point (for tracking purposes)
                 center_x = int((x1 + x2) / 2)
                 center_y = int((y1 + y2) / 2)
 
-                # Check if detection is in bathroom zone
-                in_zone = (zone_x1 <= center_x <= zone_x2 and
-                          zone_y1 <= center_y <= zone_y2)
+                # Check if bounding box overlaps with bathroom zone
+                # Any part of detection box touching zone triggers detection
+                in_zone = (x1 < zone_x2 and x2 > zone_x1 and
+                          y1 < zone_y2 and y2 > zone_y1)
 
-                if cls == self.person_class and in_zone:
+                if cls in self.person_classes and in_zone:
                     people_detected.append({
                         'bbox': (x1, y1, x2, y2),
                         'center': (center_x, center_y),
@@ -541,7 +685,7 @@ class BathroomMonitor:
                                  (person_center[1] - item_center[1])**2)
 
                 # If merchandise is close to person (within 100 pixels)
-                if distance < 100:
+                if distance < 250:
                     person_merchandise.append(item)
 
             # If person has merchandise, make announcement
@@ -664,34 +808,62 @@ class BathroomMonitor:
 
 def main():
     """Main function to run the bathroom monitoring system"""
-    # Configuration
-    model_path = "yolov8n-oiv7.pt"  # Path to YOLO model (will download if not exists)
-    video_source = "videos/vid5.mp4"  # Use 0 for webcam, or path to video file
 
-    # Custom bathroom zone (optional)
-    bathroom_zone = {
-        'x1': 0.01, 'y1': 0.01,  # Top-left corner (relative coordinates)
-        'x2': 0.99, 'y2': 0.6   # Bottom-right corner (relative coordinates)
-    }
+    print("🚀 Initializing Bathroom Monitor...")
+    print("📋 Configuration:")
+    print(f"   Model: {CONFIG['model_path']}")
+    print(f"   Stream Mode: {'✅ Enabled' if CONFIG['stream_mode'] else '❌ Disabled'}")
 
-    # Stats UI Configuration
-    show_stats = False  # True: Show statistics overlay, False: Hide statistics
-    stats_scale_factor = 0.2  # Scale factor for stats UI (1.0 = normal, 1.5 = 50% larger, 0.8 = 20% smaller)
+    if CONFIG['stream_mode']:
+        print(f"   Source: {CONFIG['ip_camera_url']} (IP Camera)")
+    else:
+        print(f"   Source: {CONFIG['video_source']} (Local)")
+
+    zone = CONFIG['bathroom_zone']
+    print(f"   Zone: ({zone['x1']:.2f}, {zone['y1']:.2f}) to ({zone['x2']:.2f}, {zone['y2']:.2f})")
+    print(f"   Show Stats: {'✅ Yes' if CONFIG['show_stats'] else '❌ No'}")
+
+    # Display annotation toggles
+    annotations = CONFIG.get('annotations', {})
+    print(f"   Annotation Toggles:")
+    print(f"     Bathroom Zone: {'✅ Visible' if annotations.get('bathroom_zone', True) else '❌ Hidden'}")
+    print(f"     Person Boxes: {'✅ Visible' if annotations.get('persons', True) else '❌ Hidden'}")
+    print(f"     Item Boxes: {'✅ Visible' if annotations.get('items', True) else '❌ Hidden'}")
+
+
 
     # Create and start monitor
-    monitor = BathroomMonitor(model_path, video_source, bathroom_zone, show_stats, stats_scale_factor)
+    try:
+        monitor = BathroomMonitor(CONFIG)
+    except (ValueError, ConnectionError) as e:
+        print(f"❌ Failed to initialize monitor: {e}")
+        return
 
     try:
+        print("🎯 Starting monitoring system...")
         monitor.start()
+
+        print("✅ Monitoring system started successfully!")
+        print("📋 Controls:")
+        print("   - Press 'q' to quit")
+        print("   - Press 's' to show statistics")
+        print("   - Close video window to stop")
+
+        if CONFIG['stream_mode']:
+            print("🌐 Stream monitoring active - system will auto-reconnect if stream drops")
 
         # Keep main thread alive
         while monitor.running:
-            time.sleep(0.1)
+            time.sleep(2)
 
     except KeyboardInterrupt:
-        print("\nShutting down...")
+        print("\n⚠️  Keyboard interrupt received...")
+    except Exception as e:
+        print(f"\n❌ Unexpected error: {e}")
     finally:
+        print("🛑 Stopping monitoring system...")
         monitor.stop()
+        print("✅ System stopped successfully")
 
 
 if __name__ == "__main__":
