@@ -12,17 +12,20 @@ from config import CONFIG
 merch_ids = CONFIG["merchandise_classes"]
 person_ids = CONFIG["person_classes"]
 CONFIG['stream_mode'] = False
-CONFIG['video_source'] = "videos/vid7.mp4"
+CONFIG['video_source'] = "videos/vid4h.mp4"
+
 
 class BathroomMonitor:
     """
-    Multi-threaded bathroom entrance monitoring system with overlap-based zone detection.
-    Detects merchandise in bathroom zones and triggers immediate audio alerts.
+    Multi-threaded bathroom entrance monitoring system with overlap-based zone 
+    detection. Detects merchandise in bathroom zones and triggers immediate 
+    audio alerts.
 
     Features:
     - Real-time YOLO object detection using YOLOv8n-OI7
     - Overlap-based zone monitoring (triggers on any bounding box intersection)
-    - Immediate alerts for merchandise detection (regardless of person presence)
+    - Immediate alerts for merchandise detection (regardless of person
+      presence)
     - Audio alerts using winsound (announcement.wav file or buzzer fallback)
     - Multi-threaded architecture for smooth performance
     - UI scaling based on video resolution
@@ -854,7 +857,7 @@ def main():
 
         # Keep main thread alive
         while monitor.running:
-            time.sleep(2)
+            time.sleep(1)
 
     except KeyboardInterrupt:
         print("\n⚠️  Keyboard interrupt received...")
