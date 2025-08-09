@@ -14,7 +14,7 @@ from config import CONFIG
 merch_ids = CONFIG["merchandise_classes"]
 person_ids = CONFIG["person_classes"]
 CONFIG['stream_mode'] = False
-CONFIG['video_source'] = "videos/vid7.mp4"
+
 
 class BathroomMonitor:
     """
