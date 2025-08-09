@@ -15,7 +15,7 @@ MERCH_IDS_OIV7 = [10, 16, 17, 21, 39, 57, 65, 67, 72, 76, 78, 82, 84, 85, 86, 89
 
 PERSON_IDS_COCO = [0]
 MERCH_IDS_COCO = [24, 25, 26, 27, 28, 39, 40, 41, 42, 43, 44, 45,
-                    63, 64, 65, 66, 67, 72, 73, 74, 75, 76, 77, 78, 79]
+                    63, 64, 65, 66, 67, 73, 74, 76, 77, 78, 79]
 
 CONFIG = {
     # Model Configuration
@@ -38,9 +38,9 @@ CONFIG = {
 
     # Annotation Toggles - Organized by category
     "annotations": {
-        "bathroom_zone": True,     # Show/hide bathroom zone rectangle and label
+        "bathroom_zone": False,     # Show/hide bathroom zone rectangle and label
         "persons": False,           # Show/hide person bounding boxes and labels
-        "items": True,             # Show/hide item/merchandise bounding boxes and labels
+        "items": False,             # Show/hide item/merchandise bounding boxes and labels
     },
 
     # Detection Classes
@@ -53,6 +53,6 @@ CONFIG = {
     "reconnect_delay": 5,  # seconds
 
     # Detection Configuration
-    "confidence_threshold": 0.3,
+    "confidence_threshold": 0.1,
     "max_detections": 50
 }
