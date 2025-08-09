@@ -38,15 +38,9 @@ CONFIG = {
 
     # Annotation Toggles - Organized by category
     "annotations": {
-<<<<<<< HEAD
-        "bathroom_zone": False,     # Show/hide bathroom zone rectangle and label
-        "persons": False,           # Show/hide person bounding boxes and labels
-        "items": False,             # Show/hide item/merchandise bounding boxes and labels
-=======
         "bathroom_zone": True,     # Show/hide bathroom zone rectangle and label
         "persons": True,           # Show/hide person bounding boxes and labels
         "items": True,             # Show/hide item/merchandise bounding boxes and labels
->>>>>>> 32b263e (added person item overlap and association time , abandon timeout and alarm toggle for unassociated items)
     },
 
     # Detection Classes
@@ -60,9 +54,6 @@ CONFIG = {
 
     # Detection Configuration
     "confidence_threshold": 0.1,
-<<<<<<< HEAD
-    "max_detections": 50
-=======
     "max_detections": 25,
     "imgsz": 640,
 
@@ -79,5 +70,4 @@ CONFIG = {
 
     # Logging configuration
     "log_file": "logs/alerts.log"
->>>>>>> 32b263e (added person item overlap and association time , abandon timeout and alarm toggle for unassociated items)
 }
