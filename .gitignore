@@ -12,3 +12,4 @@ extract_imgs.py
 custom_class_split.py
 create_custom_dataset.py
 yolo*.pt
+logs*
