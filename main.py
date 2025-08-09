@@ -6,14 +6,15 @@ import time
 import numpy as np
 from datetime import datetime
 import winsound  # For buzzer sound on Windows
+import logging
+import os
 
 from config import CONFIG
 
 merch_ids = CONFIG["merchandise_classes"]
 person_ids = CONFIG["person_classes"]
 CONFIG['stream_mode'] = False
-CONFIG['video_source'] = "videos/vid4h.mp4"
-
+CONFIG['video_source'] = "videos/vid7.mp4"
 
 class BathroomMonitor:
     """
@@ -66,6 +67,17 @@ class BathroomMonitor:
         # Bathroom entrance zone
         self.bathroom_zone = self.config["bathroom_zone"]
 
+        # Abandonment/Association configuration
+        self.abandoned_timeout_seconds = self.config.get("abandoned_timeout_seconds", 30)
+        self.association_overlap_threshold = self.config.get("association_overlap_threshold", 0.7)
+        self.association_min_duration_seconds = self.config.get("association_min_duration_seconds", 5.0)
+        self.suppress_alarm_for_unassociated_items = self.config.get("suppress_alarm_for_unassociated_items", True)
+
+        # Item tracking state
+        self.item_tracks = {}
+        self.next_item_id = 1
+        self.track_max_absence_seconds = 10.0
+
         # Display toggles are now handled directly in annotation function
 
         # Threading components
@@ -110,6 +122,25 @@ class BathroomMonitor:
             'abandoned_items': 0,
             'theft_deterred': 0
         }
+
+        # Logger setup
+        log_file = self.config.get("log_file", "logs/alerts.log")
+        try:
+            log_dir = os.path.dirname(log_file)
+            if log_dir:
+                os.makedirs(log_dir, exist_ok=True)
+            self.logger = logging.getLogger("alerts_logger")
+            self.logger.setLevel(logging.INFO)
+            # Avoid duplicate handlers if multiple instances created
+            if not self.logger.handlers:
+                file_handler = logging.FileHandler(log_file, encoding='utf-8')
+                formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+                file_handler.setFormatter(formatter)
+                self.logger.addHandler(file_handler)
+            self.logger.propagate = False
+        except Exception as e:
+            print(f"⚠️  Failed to initialize logger: {e}")
+            self.logger = None
 
     def _initialize_video_capture(self):
         """Initialize video capture with stream mode support and error handling"""
@@ -349,6 +380,7 @@ class BathroomMonitor:
             # Run YOLO detection
             results = self.model.predict(
                 frame,
+                imgsz=self.config["imgsz"],
                 classes=self.merchandise_classes + self.person_classes,
                 conf=self.config["confidence_threshold"],
                 verbose=False,
@@ -459,21 +491,189 @@ class BathroomMonitor:
             else:
                 self._last_debug_time = time.time()
 
-            # Check for merchandise in zone and trigger alarm (regardless of person detection)
-            if merchandise_in_zone and self._should_announce():
-                self._make_announcement(len(merchandise_in_zone))
-                self.stats['merchandise_detected'] += len(merchandise_in_zone)
-                self.stats['announcements_made'] += 1
-                # Count people if detected, otherwise count as 1 incident
-                self.stats['customers_scanned'] += len(people_in_zone) if people_in_zone else 1
+            # Update item tracks and check for abandonment
+            try:
+                self._update_item_tracks(people_in_zone, merchandise_in_zone)
+            except Exception as e:
+                print(f"⚠️  Tracking error: {e}")
 
-                # Enhanced debug output
-                if people_in_zone:
-                    print(f"🚨 ALARM: {len(merchandise_in_zone)} merchandise items detected with {len(people_in_zone)} people in zone")
-                else:
-                    print(f"🚨 ALARM: {len(merchandise_in_zone)} merchandise items detected in zone (no person currently detected)")
+            # Decide whether to raise alarm based on suppression toggle and track states
+            if merchandise_in_zone and self._should_announce():
+                should_alarm = True
+                if self.suppress_alarm_for_unassociated_items:
+                    # Alarm only if any item is currently associated with a person
+                    # or has already been marked abandoned
+                    should_alarm = False
+                    for track in self.item_tracks.values():
+                        if track.get('in_zone') and (track.get('associated') or track.get('abandoned_reported')):
+                            should_alarm = True
+                            break
+
+                if should_alarm:
+                    self._make_announcement(len(merchandise_in_zone))
+                    self.stats['merchandise_detected'] += len(merchandise_in_zone)
+                    self.stats['announcements_made'] += 1
+                    self.stats['customers_scanned'] += len(people_in_zone) if people_in_zone else 1
+
+                    if people_in_zone:
+                        print(f"🚨 ALARM: {len(merchandise_in_zone)} merchandise items detected with {len(people_in_zone)} people in zone")
+                    else:
+                        print(f"🚨 ALARM: {len(merchandise_in_zone)} merchandise items detected in zone (no person currently detected)")
+
+                    if self.logger:
+                        try:
+                            self.logger.info(f"ALERT: items_in_zone count={len(merchandise_in_zone)} people_in_zone={len(people_in_zone)}")
+                        except Exception:
+                            pass
 
             time.sleep(1.0)  # Monitor every 1 second to allow audio to complete
+
+    def _update_item_tracks(self, people_in_zone, merchandise_in_zone):
+        """Update per-item tracks, manage association with people, and flag abandonment.
+
+        people_in_zone: list of tuples (x1, y1, x2, y2, conf)
+        merchandise_in_zone: list of tuples (x1, y1, x2, y2, conf, cls)
+        """
+        current_time = time.time()
+
+        # Mark all existing tracks as not updated this cycle
+        for track in self.item_tracks.values():
+            track['updated_this_cycle'] = False
+
+        # Helper to compute IoU
+        def iou(box_a, box_b):
+            ax1, ay1, ax2, ay2 = box_a
+            bx1, by1, bx2, by2 = box_b
+            inter_x1 = max(ax1, bx1)
+            inter_y1 = max(ay1, by1)
+            inter_x2 = min(ax2, bx2)
+            inter_y2 = min(ay2, by2)
+            inter_w = max(0, inter_x2 - inter_x1)
+            inter_h = max(0, inter_y2 - inter_y1)
+            inter_area = inter_w * inter_h
+            if inter_area <= 0:
+                return 0.0
+            area_a = max(0, (ax2 - ax1)) * max(0, (ay2 - ay1))
+            area_b = max(0, (bx2 - bx1)) * max(0, (by2 - by1))
+            union = area_a + area_b - inter_area
+            return inter_area / union if union > 0 else 0.0
+
+        # Helper to compute fraction of item box overlapped by a person box
+        def overlap_fraction_item_by_person(item_box, person_box):
+            ix1, iy1, ix2, iy2 = item_box
+            px1, py1, px2, py2 = person_box
+            inter_x1 = max(ix1, px1)
+            inter_y1 = max(iy1, py1)
+            inter_x2 = min(ix2, px2)
+            inter_y2 = min(iy2, py2)
+            inter_w = max(0, inter_x2 - inter_x1)
+            inter_h = max(0, inter_y2 - inter_y1)
+            inter_area = inter_w * inter_h
+            item_area = max(1, (ix2 - ix1) * (iy2 - iy1))
+            return inter_area / item_area
+
+        # Try to match each detected item to an existing track
+        for (ix1, iy1, ix2, iy2, iconf, icls) in merchandise_in_zone:
+            item_box = (int(ix1), int(iy1), int(ix2), int(iy2))
+
+            # Find best matching existing track of same class by IoU
+            best_track_id = None
+            best_iou = 0.0
+            for track_id, track in self.item_tracks.items():
+                if track['class_id'] != icls:
+                    continue
+                current_iou = iou(item_box, track['bbox'])
+                if current_iou > best_iou:
+                    best_iou = current_iou
+                    best_track_id = track_id
+
+            if best_track_id is not None and best_iou >= 0.3:
+                # Update existing track
+                track = self.item_tracks[best_track_id]
+                track['bbox'] = item_box
+                track['last_seen'] = current_time
+                track['updated_this_cycle'] = True
+                track['in_zone'] = True
+            else:
+                # Create new track
+                track_id = f"item_{self.next_item_id}"
+                self.next_item_id += 1
+                self.item_tracks[track_id] = {
+                    'id': track_id,
+                    'class_id': icls,
+                    'bbox': item_box,
+                    'first_seen': current_time,
+                    'last_seen': current_time,
+                    'in_zone': True,
+                    'associated': False,
+                    'association_start_time': None,
+                    'unassociated_since': current_time,
+                    'abandoned_reported': False,
+                    'updated_this_cycle': True
+                }
+                # Log detection of a new item in zone
+                if self.logger:
+                    try:
+                        self.logger.info(f"DETECTED_IN_ZONE: id={track_id} class={icls} bbox={item_box}")
+                    except Exception:
+                        pass
+
+        # For tracks not updated this cycle, mark absence
+        for track_id, track in list(self.item_tracks.items()):
+            if not track['updated_this_cycle']:
+                # Not seen in this iteration
+                # If absent for too long, remove track
+                if current_time - track['last_seen'] > self.track_max_absence_seconds:
+                    del self.item_tracks[track_id]
+                continue
+
+            # Evaluate association with any person based on overlap fraction
+            overlapped_now = False
+            for (px1, py1, px2, py2, pconf) in people_in_zone:
+                person_box = (int(px1), int(py1), int(px2), int(py2))
+                fraction = overlap_fraction_item_by_person(track['bbox'], person_box)
+                if fraction >= self.association_overlap_threshold:
+                    overlapped_now = True
+                    break
+
+            if overlapped_now:
+                # Start or continue association timing
+                if track['association_start_time'] is None:
+                    track['association_start_time'] = current_time
+                # If persisted long enough, mark associated
+                if (current_time - track['association_start_time']) >= self.association_min_duration_seconds:
+                    if not track['associated']:
+                        track['associated'] = True
+                        # Optional log: association achieved
+                        if self.logger:
+                            try:
+                                self.logger.info(f"ASSOCIATED_WITH_PERSON: id={track_id} class={track['class_id']} bbox={track['bbox']}")
+                            except Exception:
+                                pass
+                # Reset unassociated timer
+                track['unassociated_since'] = None
+            else:
+                # No overlap now
+                track['association_start_time'] = None
+                if track['associated']:
+                    # Lost association once overlap ended
+                    track['associated'] = False
+                if track['unassociated_since'] is None:
+                    track['unassociated_since'] = current_time
+
+            # Check abandonment condition
+            if (track['in_zone'] and not track['associated'] and track['unassociated_since'] is not None
+                    and not track['abandoned_reported']
+                    and (current_time - track['unassociated_since']) >= self.abandoned_timeout_seconds):
+                track['abandoned_reported'] = True
+                self.stats['abandoned_items'] += 1
+                self.stats['theft_deterred'] += 1
+                print(f"ALERT: Abandoned merchandise detected (id={track_id}) for {current_time - track['unassociated_since']:.1f}s")
+                if self.logger:
+                    try:
+                        self.logger.info(f"ABANDONED: id={track_id} class={track['class_id']} bbox={track['bbox']} duration={current_time - track['unassociated_since']:.1f}s")
+                    except Exception:
+                        pass
 
     def _annotate_frame(self, frame, results):
         """Annotate frame with detection boxes and labels based on toggle settings"""

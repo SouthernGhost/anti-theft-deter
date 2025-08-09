@@ -28,7 +28,7 @@ CONFIG = {
 
     # Detection Zone Configuration
     "bathroom_zone": {
-        'x1': 0.01, 'y1': 0.7,   # Top-left corner (relative coordinates 0-1)
+        'x1': 0.01, 'y1': 0.5,   # Top-left corner (relative coordinates 0-1)
         'x2': 0.99, 'y2': 0.99   # Bottom-right corner (relative coordinates 0-1)
     },
 
@@ -38,9 +38,15 @@ CONFIG = {
 
     # Annotation Toggles - Organized by category
     "annotations": {
+<<<<<<< HEAD
         "bathroom_zone": False,     # Show/hide bathroom zone rectangle and label
         "persons": False,           # Show/hide person bounding boxes and labels
         "items": False,             # Show/hide item/merchandise bounding boxes and labels
+=======
+        "bathroom_zone": True,     # Show/hide bathroom zone rectangle and label
+        "persons": True,           # Show/hide person bounding boxes and labels
+        "items": True,             # Show/hide item/merchandise bounding boxes and labels
+>>>>>>> 32b263e (added person item overlap and association time , abandon timeout and alarm toggle for unassociated items)
     },
 
     # Detection Classes
@@ -54,5 +60,24 @@ CONFIG = {
 
     # Detection Configuration
     "confidence_threshold": 0.1,
+<<<<<<< HEAD
     "max_detections": 50
+=======
+    "max_detections": 25,
+    "imgsz": 640,
+
+    # Abandonment/Association Configuration
+    # Time an item must remain in the zone without being with a person to be considered abandoned
+    "abandoned_timeout_seconds": 5,
+    # Overlap threshold (fraction of item box area overlapped by a person box) to consider them overlapping
+    "association_overlap_threshold": 0.3,
+    # Continuous time the overlap must persist to consider the item as with a person
+    "association_min_duration_seconds": 0.0,
+    # If True, do not raise alarm for items in zone unless they are associated with a person
+    # or have exceeded the abandonment timeout. If False, alarm on any item in zone.
+    "suppress_alarm_for_unassociated_items": True,
+
+    # Logging configuration
+    "log_file": "logs/alerts.log"
+>>>>>>> 32b263e (added person item overlap and association time , abandon timeout and alarm toggle for unassociated items)
 }
