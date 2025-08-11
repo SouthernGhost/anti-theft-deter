@@ -23,11 +23,11 @@ class BathroomMonitor:
     audio alerts.
 
     Features:
-    - Real-time YOLO object detection using YOLOv8n-OI7
+    - Real-time YOLO object detection using YOLO11n
     - Overlap-based zone monitoring (triggers on any bounding box intersection)
     - Immediate alerts for merchandise detection (regardless of person
       presence)
-    - Audio alerts using winsound (announcement.wav file or buzzer fallback)
+    - Audio alerts using winsound
     - Multi-threaded architecture for smooth performance
     - UI scaling based on video resolution
     - Configurable statistics overlay with custom scaling
