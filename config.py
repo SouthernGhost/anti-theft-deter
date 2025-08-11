@@ -71,3 +71,6 @@ CONFIG = {
     # Logging configuration
     "log_file": "logs/alerts.log"
 }
+
+# Database configuration
+DATABASE_NAME = "database/sus_activity.db"
