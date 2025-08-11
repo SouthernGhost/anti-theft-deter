@@ -14,3 +14,4 @@ create_custom_dataset.py
 yolo*.pt
 *log*
 database/
+images/
