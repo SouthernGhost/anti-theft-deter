@@ -6,9 +6,8 @@ A comprehensive computer vision system for retail theft prevention using YOLO ob
 
 This repository contains:
 1. **Monitoring System**: Real-time theft detection and alert system using YOLO11n
-2. **Pre-configured Classes**: Uses Open Images V7 classes for merchandise and person detection
-3. **Audio Alert System**: Configurable audio announcements for theft deterrence
-4. **Training Tools**: Optional custom training pipeline for specialized datasets
+2. **Audio Alert System**: Configurable audio announcements for theft deterrence
+3. **Training Tools**: Optional custom training pipeline for specialized datasets
 
 ## Project Structure
 
@@ -16,6 +15,7 @@ This repository contains:
 anti-theft-deter/
 ├── audio/                 # Audio alert files (speech.wav)
 ├── videos/                # Test video files
+├── utils/                 # User defined modules
 ├── config.py              # System configuration file
 ├── main.py                # Real-time monitoring system
 ├── train_yolo.py          # Optional custom training script
@@ -26,7 +26,7 @@ anti-theft-deter/
 
 ### Configured Class Categories
 
-1. **Person Classes**: Class ID 0 (expandable list in `PERSON_IDS_OIV7` in `config.py`)
+1. **Person Classes**: Class ID 0 (expandable list in `PERSON_IDS_OIV7` in `config.py`. Use` yolov8n-oiv7.pt` instead.)
 2. **Merchandise Classes**: 200+ retail item class IDs from Open Images V7
    - Food items, beverages, containers, bags, electronics
    - Clothing, accessories, household items, tools
@@ -88,8 +88,8 @@ python main.py
 
 #### Monitoring Capabilities
 
-- Person detection using Open Images V7 classes
-- Merchandise detection (200+ retail item categories from Open Images V7)
+- Person detection using COCO & Open Images V7 classes
+- Merchandise detection (200+ retail item categories from COCO & Open Images V7)
 - Configurable detection zones (bathroom monitoring)
 - Real-time audio announcements for detected events
 - Visual bounding boxes with class labels
@@ -104,13 +104,17 @@ CONFIG = {
     "model_path": "yolo11n.pt",  # Path to YOLO model
 
     # Video Source Configuration
-    "stream_mode": False,  # Set to True to use IP camera stream
-    "video_source": "videos/vid13.mp4",  # Video file path, webcam (0), or IP camera URL
+    "stream_mode": True,  # Set to True to use IP camera stream
+    "video_source": "videos/vid0h.mp4",  # Video file path, webcam (0), or IP camera URL
     "ip_camera_url": "http://192.168.10.9:8080/video",  # IP camera URL (used when stream_mode=True)
+
+    #Output paths
+    'database': 'database/sus_activity.db',
+    'img_folder': 'imgs/',
 
     # Detection Zone Configuration
     "bathroom_zone": {
-        'x1': 0.01, 'y1': 0.7,   # Top-left corner (relative coordinates 0-1)
+        'x1': 0.01, 'y1': 0.5,   # Top-left corner (relative coordinates 0-1)
         'x2': 0.99, 'y2': 0.99   # Bottom-right corner (relative coordinates 0-1)
     },
 
@@ -118,7 +122,7 @@ CONFIG = {
     "show_stats": False,  # Show statistics overlay
     "stats_scale_factor": 0.2,  # Scale factor for UI elements (0.1-1.0)
 
-    # Annotation Toggles - Simple and clean
+    # Annotation Toggles - Organized by category
     "annotations": {
         "bathroom_zone": True,     # Show/hide bathroom zone rectangle and label
         "persons": True,           # Show/hide person bounding boxes and labels
@@ -135,8 +139,23 @@ CONFIG = {
     "reconnect_delay": 5,  # seconds
 
     # Detection Configuration
-    "confidence_threshold": 0.3,
-    "max_detections": 50
+    "confidence_threshold": 0.1,
+    "max_detections": 25,
+    "imgsz": 640,
+
+    # Abandonment/Association Configuration
+    # Time an item must remain in the zone without being with a person to be considered abandoned
+    "abandoned_timeout_seconds": 5,
+    # Overlap threshold (fraction of item box area overlapped by a person box) to consider them overlapping
+    "association_overlap_threshold": 0.3,
+    # Continuous time the overlap must persist to consider the item as with a person
+    "association_min_duration_seconds": 0.0,
+    # If True, do not raise alarm for items in zone unless they are associated with a person
+    # or have exceeded the abandonment timeout. If False, alarm on any item in zone.
+    "suppress_alarm_for_unassociated_items": True,
+
+    # Logging configuration
+    "log_file": "logs/alerts.log"
 }
 ```
 
