@@ -26,6 +26,10 @@ CONFIG = {
     "video_source": "videos/vid0h.mp4",  # Video file path, webcam (0), or IP camera URL
     "ip_camera_url": "http://192.168.10.9:8080/video",  # IP camera URL (used when stream_mode=True)
 
+    #Output paths
+    'database': 'database/sus_activity.db',
+    'img_folder': 'imgs/',
+
     # Detection Zone Configuration
     "bathroom_zone": {
         'x1': 0.01, 'y1': 0.5,   # Top-left corner (relative coordinates 0-1)
@@ -71,6 +75,3 @@ CONFIG = {
     # Logging configuration
     "log_file": "logs/alerts.log"
 }
-
-# Database configuration
-DATABASE_NAME = "database/sus_activity.db"

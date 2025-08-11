@@ -1,13 +1,13 @@
 import os
 import time
 import sqlite3
-from config import DATABASE_NAME
+from config import CONFIG
 
 
 
 def initialize_database():
     """Initialize the database and create tables if they don't exist."""
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(CONFIG['database'])
     print('Connected to database!')
     cursor = conn.cursor()
     # Create sus_person table
@@ -30,7 +30,7 @@ def initialize_database():
 
 def add_record(table_name, path, time):
     """Add a new record to the specified table."""
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(CONFIG['database'])
     cursor = conn.cursor()
     
     cursor.execute(f'''
@@ -44,7 +44,7 @@ def add_record(table_name, path, time):
 
 def update_record(table_name, old_path, new_path, new_time):
     """Update an existing record in the specified table."""
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(CONFIG['database'])
     cursor = conn.cursor()
     
     cursor.execute(f'''
@@ -59,7 +59,7 @@ def update_record(table_name, old_path, new_path, new_time):
 
 def delete_record(table_name, path):
     """Delete a record from the specified table."""
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(CONFIG['database'])
     cursor = conn.cursor()
     
     cursor.execute(f'''
