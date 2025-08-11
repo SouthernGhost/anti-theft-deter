@@ -1,0 +1,17 @@
+[project]
+name = "anti-theft-deter"
+version = "0.5"
+description = "Anti theft system using yolo object detection"
+authors = [
+    {name = "SouthernGhost",email = "m.abdulla.ab26@gmail.com"}
+]
+license = {text = "None"}
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
