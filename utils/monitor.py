@@ -147,6 +147,9 @@ class BathroomMonitor:
             print(f"⚠️  Failed to initialize logger: {e}")
             self.logger = None
 
+        # Create images directory for saving alerts
+        os.makedirs("images", exist_ok=True)
+
     def _initialize_video_capture(self):
         """Initialize video capture with stream mode support and error handling"""
         if self.stream_mode:
@@ -479,22 +482,10 @@ class BathroomMonitor:
 
                     if in_zone:
                         if cls in self.person_classes:
-                            people_in_zone.append((x1, y1, x2, y2, conf))
+                            people_in_zone.append((x1, y1, x2, y2, conf, result))
                             #print(f"DEBUG: Person detected overlapping zone - Class ID: {cls}, Conf: {conf:.2f}")
                         elif cls in self.merchandise_classes:
-                            merchandise_in_zone.append((x1, y1, x2, y2, conf, cls))
-                            #print(f"DEBUG: Merchandise detected overlapping zone - Class ID: {cls}, Conf: {conf:.2f}")
-
-            # Debug: Print detected classes every few seconds
-            if hasattr(self, '_last_debug_time'):
-                if time.time() - self._last_debug_time > 5.0:  # Every 5 seconds
-                    if detected_classes:
-                        #print(f"DEBUG: All detected classes: {sorted(detected_classes)}")
-                        #print(f"DEBUG: Looking for person classes: {self.person_classes}")
-                        #print(f"DEBUG: Looking for merchandise classes (first 10): {self.merchandise_classes[:10]}...")
-                        self._last_debug_time = time.time()
-            else:
-                self._last_debug_time = time.time()
+                            merchandise_in_zone.append((x1, y1, x2, y2, conf, cls, result))
 
             # Update item tracks and check for abandonment
             try:
@@ -536,8 +527,8 @@ class BathroomMonitor:
     def _update_item_tracks(self, people_in_zone, merchandise_in_zone):
         """Update per-item tracks, manage association with people, and flag abandonment.
 
-        people_in_zone: list of tuples (x1, y1, x2, y2, conf)
-        merchandise_in_zone: list of tuples (x1, y1, x2, y2, conf, cls)
+        people_in_zone: list of tuples (x1, y1, x2, y2, conf, result)
+        merchandise_in_zone: list of tuples (x1, y1, x2, y2, conf, cls, result)
         """
         current_time = time.time()
 
@@ -578,7 +569,7 @@ class BathroomMonitor:
             return inter_area / item_area
 
         # Try to match each detected item to an existing track
-        for (ix1, iy1, ix2, iy2, iconf, icls) in merchandise_in_zone:
+        for (ix1, iy1, ix2, iy2, iconf, icls, result) in merchandise_in_zone:
             item_box = (int(ix1), int(iy1), int(ix2), int(iy2))
 
             # Find best matching existing track of same class by IoU
@@ -599,6 +590,7 @@ class BathroomMonitor:
                 track['last_seen'] = current_time
                 track['updated_this_cycle'] = True
                 track['in_zone'] = True
+                track['result'] = result
             else:
                 # Create new track
                 track_id = f"item_{self.next_item_id}"
@@ -614,7 +606,9 @@ class BathroomMonitor:
                     'association_start_time': None,
                     'unassociated_since': current_time,
                     'abandoned_reported': False,
-                    'updated_this_cycle': True
+                    'updated_this_cycle': True,
+                    'result': result,
+                    'image_saved_for_association': False
                 }
                 # Log detection of a new item in zone
                 if self.logger:
@@ -634,7 +628,7 @@ class BathroomMonitor:
 
             # Evaluate association with any person based on overlap fraction
             overlapped_now = False
-            for (px1, py1, px2, py2, pconf) in people_in_zone:
+            for (px1, py1, px2, py2, pconf, _) in people_in_zone:
                 person_box = (int(px1), int(py1), int(px2), int(py2))
                 fraction = overlap_fraction_item_by_person(track['bbox'], person_box)
                 if fraction >= self.association_overlap_threshold:
@@ -642,6 +636,18 @@ class BathroomMonitor:
                     break
 
             if overlapped_now:
+                # If overlapping, save an image for evidence if not already saved
+                result_to_save = track.get('result')
+                if result_to_save and not track.get('image_saved_for_association'):
+                    now = datetime.now()
+                    timestamp = now.strftime("%d-%m-%Y_%H-%M-%S")
+                    image_name = f"img_{timestamp}.jpg"
+                    image_path = os.path.join('images', image_name)
+                    cv2.imwrite(image_path, result_to_save.orig_img)
+                    track['image_saved_for_association'] = True
+                    if self.logger:
+                        self.logger.info(f"OVERLAP_DETECTED: Saved image {image_path} for track {track_id}")
+
                 # Start or continue association timing
                 if track['association_start_time'] is None:
                     track['association_start_time'] = current_time
@@ -660,6 +666,7 @@ class BathroomMonitor:
             else:
                 # No overlap now
                 track['association_start_time'] = None
+                track['image_saved_for_association'] = False  # Reset image save flag
                 if track['associated']:
                     # Lost association once overlap ended
                     track['associated'] = False
@@ -746,10 +753,6 @@ class BathroomMonitor:
 
         return annotated_frame
 
-    # Removed tracking annotation method - using simple detection only
-
-    # Removed tracking helper methods - using simple detection only
-
     def _draw_bathroom_zone(self, frame):
         """Draw bathroom monitoring zone on frame if enabled"""
         # Check if bathroom zone annotation is enabled
@@ -829,109 +832,7 @@ class BathroomMonitor:
             cv2.putText(frame, text, (text_start_x, text_start_y + i * line_spacing),
                        cv2.FONT_HERSHEY_SIMPLEX, stats_text_scale, (255, 255, 255), stats_text_thickness)
 
-    def _process_detections(self, results):
-        """Process YOLO detections for bathroom monitoring"""
-        current_time = time.time()
-        h, w = self.current_frame.shape[:2] if self.current_frame is not None else (720, 1280)
-
-        # Convert bathroom zone to absolute coordinates
-        zone_x1 = int(self.bathroom_zone['x1'] * w)
-        zone_y1 = int(self.bathroom_zone['y1'] * h)
-        zone_x2 = int(self.bathroom_zone['x2'] * w)
-        zone_y2 = int(self.bathroom_zone['y2'] * h)
-
-        people_detected = []
-        merchandise_detected = []
-
-        for result in results:
-            if result.boxes is None:
-                continue
-
-            for box in result.boxes:
-                x1, y1, x2, y2 = box.xyxy[0].tolist()
-                cls = int(box.cls[0])
-                conf = float(box.conf[0])
-
-                # Calculate center point (for tracking purposes)
-                center_x = int((x1 + x2) / 2)
-                center_y = int((y1 + y2) / 2)
-
-                # Check if bounding box overlaps with bathroom zone
-                # Any part of detection box touching zone triggers detection
-                in_zone = (x1 < zone_x2 and x2 > zone_x1 and
-                          y1 < zone_y2 and y2 > zone_y1)
-
-                if cls in self.person_classes and in_zone:
-                    people_detected.append({
-                        'bbox': (x1, y1, x2, y2),
-                        'center': (center_x, center_y),
-                        'conf': conf,
-                        'time': current_time
-                    })
-
-                elif cls in self.merchandise_classes:
-                    merchandise_detected.append({
-                        'bbox': (x1, y1, x2, y2),
-                        'center': (center_x, center_y),
-                        'conf': conf,
-                        'class': cls,
-                        'time': current_time,
-                        'in_zone': in_zone
-                    })
-
-        # Process people entering bathroom zone
-        for person in people_detected:
-            self.stats['customers_scanned'] += 1
-
-            # Check for merchandise near this person
-            person_merchandise = []
-            for item in merchandise_detected:
-                # Calculate distance between person and merchandise
-                person_center = person['center']
-                item_center = item['center']
-                distance = np.sqrt((person_center[0] - item_center[0])**2 +
-                                 (person_center[1] - item_center[1])**2)
-
-                # If merchandise is close to person (within 100 pixels)
-                if distance < 250:
-                    person_merchandise.append(item)
-
-            # If person has merchandise, make announcement
-            if person_merchandise and self._should_announce():
-                self._make_announcement(len(person_merchandise))
-                self.stats['merchandise_detected'] += len(person_merchandise)
-                self.stats['announcements_made'] += 1
-
-                # Track merchandise with this person
-                person_id = f"person_{current_time}"
-                self.merchandise_detections[person_id] = {
-                    'items': person_merchandise,
-                    'time': current_time,
-                    'announced': True
-                }
-
-        # Track standalone merchandise (potentially abandoned)
-        for item in merchandise_detected:
-            if not item['in_zone']:
-                continue
-
-            item_id = f"item_{item['center'][0]}_{item['center'][1]}"
-
-            # Check if this is a new abandoned item
-            if item_id not in self.abandoned_items:
-                self.abandoned_items[item_id] = {
-                    'first_seen': current_time,
-                    'last_seen': current_time,
-                    'bbox': item['bbox'],
-                    'class': item['class'],
-                    'stable_count': 1
-                }
-            else:
-                # Update existing item
-                self.abandoned_items[item_id]['last_seen'] = current_time
-                self.abandoned_items[item_id]['stable_count'] += 1
-
-    def _check_abandoned_items(self):
+    
         """Check for items that have been abandoned for too long"""
         current_time = time.time()
         abandoned_threshold = 30  # 30 seconds
