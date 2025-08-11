@@ -6,6 +6,8 @@ from datetime import datetime
 import winsound
 import logging
 
+import torch
+
 from config import CONFIG
 from .database import initialize_database
 
@@ -57,6 +59,11 @@ class BathroomMonitor:
 
         # YOLO model for object detection
         self.model = YOLO(self.config["model_path"])
+        #Model warmup
+        print('Warming up YOLO...')
+        img = torch.zeros(1,3,640,640)
+        for i in range(5):
+            self.model.predict(img, verbose=False)
 
         # Merchandise classes (bags, backpacks, handbags, suitcases, etc.)
         self.merchandise_classes = self.config["merchandise_classes"]
