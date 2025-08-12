@@ -54,6 +54,7 @@ def main():
         print("📋 Controls:")
         print("   - Press 'q' to quit")
         print("   - Press 's' to show statistics")
+        print("   - Press 'f' to toggle FPS overlay")
         print("   - Close video window to stop")
 
         if CONFIG['stream_mode']:

@@ -12,6 +12,7 @@ from config import CONFIG
 from .database import initialize_database
 
 from ultralytics import YOLO
+from .benchmark import Benchmark
 import cv2
 import numpy as np
 
@@ -83,6 +84,8 @@ class BathroomMonitor:
         self.next_item_id = 1
         self.track_max_absence_seconds = 10.0
 
+        self.abandoned_items = {}
+
         # Display toggles are now handled directly in annotation function
 
         # Threading components
@@ -118,6 +121,10 @@ class BathroomMonitor:
         self.text_scale = 0.5
         self.thickness = 0.1
         self.font_thickness = 1
+        
+        # FPS display
+        self.show_fps = self.config["annotations"].get("show_fps", True)
+        self.benchmark = Benchmark()
 
         # Statistics
         self.stats = {
@@ -398,6 +405,7 @@ class BathroomMonitor:
 
             # Store current results for monitoring thread
             self.current_results = results
+            self.benchmark.update(results[0].speed)
 
             # Create annotated frame (no tracking)
             annotated_frame = self._annotate_frame(frame, results)
@@ -428,6 +436,9 @@ class BathroomMonitor:
             # Add statistics overlay
             self._draw_stats_overlay(annotated_frame)
 
+            if self.show_fps:
+                self._draw_fps_overlay(annotated_frame)
+
             # Display frame
             cv2.imshow('Bathroom Monitor', annotated_frame)
 
@@ -438,6 +449,8 @@ class BathroomMonitor:
                 break
             elif key == ord('s'):
                 self._print_stats()
+            elif key == ord('f'):
+                self.show_fps = not self.show_fps
 
     def _monitor_bathroom_zone(self):
         """Thread function: Monitor bathroom zone for merchandise using overlap detection.
@@ -834,35 +847,38 @@ class BathroomMonitor:
                        cv2.FONT_HERSHEY_SIMPLEX, stats_text_scale, (255, 255, 255), stats_text_thickness)
 
     
-        """Check for items that have been abandoned for too long"""
-        current_time = time.time()
-        abandoned_threshold = 30  # 30 seconds
+    def _draw_fps_overlay(self, frame):
+        """Draw FPS overlay on frame"""
+        fps = self.benchmark.get_fps()
+        fps_text = f"FPS: {fps:.2f}"
+        
+        # Use user-specified scale factor for consistency
+        user_scale = self.stats_scale_factor
+        
+        # Scaled font properties
+        text_scale = max(0.2, 0.7 * user_scale)
+        text_thickness = max(1, int(2 * user_scale))
+        
+        # Position at top-right corner
+        (text_width, text_height), _ = cv2.getTextSize(fps_text, cv2.FONT_HERSHEY_SIMPLEX, text_scale, text_thickness)
+        
+        margin = max(5, int(10 * user_scale))
+        
+        # Get frame dimensions
+        h, w = frame.shape[:2]
+        
+        # Position at top right
+        text_x = w - text_width - margin
+        text_y = text_height + margin
+        
+        # Draw background rectangle for better visibility
+        cv2.rectangle(frame, (text_x - margin, text_y - text_height - margin),
+                      (text_x + text_width + margin, text_y + margin), (0, 0, 0), -1)
+        
+        # Draw FPS text
+        cv2.putText(frame, fps_text, (text_x, text_y),
+                    cv2.FONT_HERSHEY_SIMPLEX, text_scale, (255, 255, 255), text_thickness)
 
-        items_to_remove = []
-
-        for item_id, item_data in self.abandoned_items.items():
-            time_abandoned = current_time - item_data['first_seen']
-            time_since_seen = current_time - item_data['last_seen']
-
-            # If item has been stable for threshold time, consider it abandoned
-            if (time_abandoned > abandoned_threshold and
-                item_data['stable_count'] > 10 and
-                time_since_seen < 5):  # Still being detected
-
-                if not item_data.get('reported', False):
-                    self.stats['abandoned_items'] += 1
-                    self.stats['theft_deterred'] += 1
-                    self.abandoned_items[item_id]['reported'] = True
-
-                    print(f"ALERT: Abandoned merchandise detected for {time_abandoned:.1f}s")
-
-            # Remove items not seen for a while
-            elif time_since_seen > 10:
-                items_to_remove.append(item_id)
-
-        # Clean up old items
-        for item_id in items_to_remove:
-            del self.abandoned_items[item_id]
 
     def _should_announce(self):
         """Check if we should make an announcement (not currently speaking and enough time passed)"""

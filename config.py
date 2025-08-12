@@ -37,14 +37,16 @@ CONFIG = {
     },
 
     # Display Configuration
-    "show_stats": False,  # Show statistics overlay
-    "stats_scale_factor": 0.2,  # Scale factor for UI elements (0.1-1.0)
+    "show_stats": False,
+    # Show statistics overlay
+    "stats_scale_factor": 1,  # Scale factor for UI elements (0.1-1.0)
 
     # Annotation Toggles - Organized by category
     "annotations": {
         "bathroom_zone": True,     # Show/hide bathroom zone rectangle and label
         "persons": True,           # Show/hide person bounding boxes and labels
         "items": True,             # Show/hide item/merchandise bounding boxes and labels
+        "show_fps": True,     # Show/hide FPS
     },
 
     # Detection Classes
