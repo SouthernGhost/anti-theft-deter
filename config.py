@@ -38,6 +38,9 @@ CONFIG = {
         'x2': 0.99, 'y2': 0.99   # Bottom-right corner (relative coordinates 0-1)
     },
 
+    #Window Size
+    "window_size": (1920,1080),
+
     # Display Configuration
     "show_stats": False,
     # Show statistics overlay
@@ -62,8 +65,8 @@ CONFIG = {
 
     # Detection Configuration
     "confidence_threshold": 0.1,
-    "max_detections": 25,
-    "imgsz": 640,
+    "max_detections": 20,
+    "imgsz": 704,
 
     # Abandonment/Association Configuration
     # Time an item must remain in the zone without being with a person to be considered abandoned

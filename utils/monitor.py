@@ -418,8 +418,8 @@ class BathroomMonitor:
 
     def _display_frames(self):
         """Thread function: Display annotated frames in OpenCV window"""
-        cv2.namedWindow('Bathroom Monitor', cv2.WINDOW_NORMAL)
-        cv2.resizeWindow('Bathroom Monitor', 1280, 720)
+        cv2.namedWindow('Bathroom Monitor', cv2.WINDOW_AUTOSIZE)
+        cv2.resizeWindow('Bathroom Monitor', self.config['window_size'][0], self.config['window_size'][1])
 
         while self.running:
             try:
