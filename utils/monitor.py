@@ -366,6 +366,7 @@ class BathroomMonitor:
             else:
                 consecutive_failures = 0  # Reset on successful frame read
 
+            frame = cv2.flip(frame, -1)
             # Store current frame for other threads
             self.current_frame = frame.copy()
 
