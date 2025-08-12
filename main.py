@@ -1,9 +1,8 @@
+import os
 import time
 
 from config import CONFIG
 from utils import BathroomMonitor
-from utils import initialize_database
-
 
 
 merch_ids = CONFIG["merchandise_classes"]
@@ -39,8 +38,7 @@ def main():
 
     # Create and start monitor
     try:
-        # Initialize the database
-        initialize_database()
+        os.makedirs(CONFIG['images_folder'], exist_ok=True)
         monitor = BathroomMonitor(CONFIG)
     except (ValueError, ConnectionError) as e:
         print(f"❌ Failed to initialize monitor: {e}")

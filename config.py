@@ -1,3 +1,5 @@
+from pathlib import Path
+
 PERSON_IDS_OIV7 = [63, 216, 322, 381, 594]
 MERCH_IDS_OIV7 = [10, 16, 17, 21, 39, 57, 65, 67, 72, 76, 78, 82, 84, 85, 86, 89, 92,
                     93, 96, 105, 108, 119, 120, 121, 125, 126, 132, 133, 135, 139, 140,
@@ -28,7 +30,7 @@ CONFIG = {
 
     #Output paths
     'database': 'database/sus_activity.db',
-    'img_folder': 'imgs/',
+    'images_folder': str(Path.home()/"Pictures/Merchandise in Zone/"),
 
     # Detection Zone Configuration
     "bathroom_zone": {
@@ -39,7 +41,7 @@ CONFIG = {
     # Display Configuration
     "show_stats": False,
     # Show statistics overlay
-    "stats_scale_factor": 1,  # Scale factor for UI elements (0.1-1.0)
+    "stats_scale_factor": 1.0,  # Scale factor for UI elements (0.1-1.0)
 
     # Annotation Toggles - Organized by category
     "annotations": {

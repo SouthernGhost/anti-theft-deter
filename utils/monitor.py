@@ -5,11 +5,11 @@ import time
 from datetime import datetime
 import winsound
 import logging
+from pathlib import Path
 
 import torch
 
 from config import CONFIG
-from .database import initialize_database
 
 from ultralytics import YOLO
 from .benchmark import Benchmark
@@ -656,7 +656,7 @@ class BathroomMonitor:
                     now = datetime.now()
                     timestamp = now.strftime("%d-%m-%Y_%H-%M-%S")
                     image_name = f"img_{timestamp}.jpg"
-                    image_path = os.path.join('images', image_name)
+                    image_path = os.path.join(self.config['images_folder'], image_name)
                     cv2.imwrite(image_path, result_to_save.orig_img)
                     track['image_saved_for_association'] = True
                     if self.logger:
