@@ -13,7 +13,7 @@ except Exception:
 
 import torch
 
-from config import CONFIG
+from .config import CONFIG
 
 from ultralytics import YOLO
 from .benchmark import Benchmark

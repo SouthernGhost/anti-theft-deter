@@ -1,16 +1,12 @@
+from asyncio import ensure_future
 import os
 import time
 
 from utils.gui import start_app
-from config import CONFIG
+from utils.config import _ensure_settings_file, _load_settings
 
-merch_ids = CONFIG["merchandise_classes"]
-person_ids = CONFIG["person_classes"]
-CONFIG['stream_mode'] = False
-
-def main():
-   return
-
+_ensure_settings_file()
+CONFIG = _load_settings()
 
 if __name__ == "__main__":
     start_app(CONFIG)
