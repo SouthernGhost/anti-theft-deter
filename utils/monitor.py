@@ -6,6 +6,10 @@ from datetime import datetime
 import winsound
 import logging
 from pathlib import Path
+try:
+    import msvcrt  # For non-blocking key reads on Windows
+except Exception:
+    msvcrt = None
 
 import torch
 
@@ -72,6 +76,11 @@ class BathroomMonitor:
 
         # Bathroom entrance zone
         self.bathroom_zone = self.config["bathroom_zone"]
+        # Detection region toggle
+        self.detect_full_frame = self.config.get("detect_full_frame", True)
+        # Threshold for treating a person as valid (affects both results and annotation)
+        self.person_annotation_threshold = self.config.get("person_annotation_threshold", 0.3)
+        self.last_crop_offset = (0, 0)
 
         # Abandonment/Association configuration
         self.abandoned_timeout_seconds = self.config.get("abandoned_timeout_seconds", 30)
@@ -97,6 +106,7 @@ class BathroomMonitor:
         self.detection_thread = None
         self.display_thread = None
         self.monitoring_thread = None
+        self.keyboard_thread = None
 
         # Control flags
         self.running = False
@@ -125,6 +135,9 @@ class BathroomMonitor:
         # FPS display
         self.show_fps = self.config["annotations"].get("show_fps", True)
         self.benchmark = Benchmark()
+        # Runtime annotation toggles
+        self.show_bboxes = True
+        self.show_zone = self.config.get("annotations", {}).get("bathroom_zone", True)
 
         # Statistics
         self.stats = {
@@ -252,11 +265,13 @@ class BathroomMonitor:
         self.detection_thread = threading.Thread(target=self._detect_objects, daemon=True)
         self.display_thread = threading.Thread(target=self._display_frames, daemon=True)
         self.monitoring_thread = threading.Thread(target=self._monitor_bathroom_zone, daemon=True)
+        self.keyboard_thread = threading.Thread(target=self._monitor_keyboard, daemon=True)
 
         self.capture_thread.start()
         self.detection_thread.start()
         self.display_thread.start()
         self.monitoring_thread.start()
+        self.keyboard_thread.start()
 
         print("Bathroom monitoring system started...")
         print("Press 'q' to quit, 's' to show stats")
@@ -393,9 +408,24 @@ class BathroomMonitor:
             except queue.Empty:
                 continue
 
-            # Run YOLO detection
+            # Optionally crop to bathroom zone before detection
+            source_frame = frame
+            crop_offset = (0, 0)
+            if not self.detect_full_frame and frame is not None:
+                h, w = frame.shape[:2]
+                x1 = int(self.bathroom_zone['x1'] * w)
+                y1 = int(self.bathroom_zone['y1'] * h)
+                x2 = int(self.bathroom_zone['x2'] * w)
+                y2 = int(self.bathroom_zone['y2'] * h)
+                x1, y1 = max(0, x1), max(0, y1)
+                x2, y2 = min(w, x2), min(h, y2)
+                if x2 > x1 and y2 > y1:
+                    source_frame = frame[y1:y2, x1:x2].copy()
+                    crop_offset = (x1, y1)
+
+            # Run YOLO detection on selected region
             results = self.model.predict(
-                frame,
+                source_frame,
                 imgsz=self.config["imgsz"],
                 classes=self.merchandise_classes + self.person_classes,
                 conf=self.config["confidence_threshold"],
@@ -407,8 +437,11 @@ class BathroomMonitor:
             self.current_results = results
             self.benchmark.update(results[0].speed)
 
+            # Store crop offset for other threads
+            self.last_crop_offset = crop_offset
+
             # Create annotated frame (no tracking)
-            annotated_frame = self._annotate_frame(frame, results)
+            annotated_frame = self._annotate_frame(frame, results, crop_offset)
 
             # Add to display queue
             try:
@@ -418,7 +451,7 @@ class BathroomMonitor:
 
     def _display_frames(self):
         """Thread function: Display annotated frames in OpenCV window"""
-        cv2.namedWindow('Bathroom Monitor', cv2.WINDOW_AUTOSIZE)
+        cv2.namedWindow('Bathroom Monitor', cv2.WINDOW_GUI_NORMAL)
         cv2.resizeWindow('Bathroom Monitor', self.config['window_size'][0], self.config['window_size'][1])
 
         while self.running:
@@ -430,8 +463,9 @@ class BathroomMonitor:
             # Store for other threads
             self.annotated_frame = annotated_frame
 
-            # Add bathroom zone overlay
-            self._draw_bathroom_zone(annotated_frame)
+            # Add bathroom zone overlay if enabled
+            if self.show_zone:
+                self._draw_bathroom_zone(annotated_frame)
 
             # Add statistics overlay
             self._draw_stats_overlay(annotated_frame)
@@ -442,15 +476,19 @@ class BathroomMonitor:
             # Display frame
             cv2.imshow('Bathroom Monitor', annotated_frame)
 
-            # Handle key presses
+            # Handle key presses for quit/stats and runtime toggles
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):
                 self.stop()
                 break
             elif key == ord('s'):
                 self._print_stats()
-            elif key == ord('f'):
+            elif key in (ord('f'), ord('F')):
                 self.show_fps = not self.show_fps
+            elif key in (ord('b'), ord('B')):
+                self.show_bboxes = not self.show_bboxes
+            elif key in (ord('z'), ord('Z')):
+                self.show_zone = not self.show_zone
 
     def _monitor_bathroom_zone(self):
         """Thread function: Monitor bathroom zone for merchandise using overlap detection.
@@ -496,7 +534,9 @@ class BathroomMonitor:
 
                     if in_zone:
                         if cls in self.person_classes:
-                            people_in_zone.append((x1, y1, x2, y2, conf, result))
+                            # Only add person if confidence above configured threshold
+                            if conf >= self.person_annotation_threshold:
+                                people_in_zone.append((x1, y1, x2, y2, conf, result))
                             #print(f"DEBUG: Person detected overlapping zone - Class ID: {cls}, Conf: {conf:.2f}")
                         elif cls in self.merchandise_classes:
                             merchandise_in_zone.append((x1, y1, x2, y2, conf, cls, result))
@@ -657,6 +697,11 @@ class BathroomMonitor:
                     timestamp = now.strftime("%d-%m-%Y_%H-%M-%S")
                     image_name = f"img_{timestamp}.jpg"
                     image_path = os.path.join(self.config['images_folder'], image_name)
+                    result_to_save.orig_img = cv2.putText(img=result_to_save.orig_img, 
+                                                            text=timestamp, org=(20,50),
+                                                            fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                                                            fontScale=2.0, color=(255,255,255),
+                                                            thickness=6)
                     cv2.imwrite(image_path, result_to_save.orig_img)
                     track['image_saved_for_association'] = True
                     if self.logger:
@@ -701,9 +746,12 @@ class BathroomMonitor:
                     except Exception:
                         pass
 
-    def _annotate_frame(self, frame, results):
+    def _annotate_frame(self, frame, results, crop_offset=(0, 0)):
         """Annotate frame with detection boxes and labels based on toggle settings"""
         annotated_frame = frame.copy()
+
+        if not self.show_bboxes:
+            return annotated_frame
 
         # Get annotation toggles
         annotations = self.config.get("annotations", {})
@@ -720,6 +768,12 @@ class BathroomMonitor:
                 # Get box coordinates
                 x1, y1, x2, y2 = box.xyxy[0].tolist()
                 x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+                # If detection was on crop, offset back to full-frame coords
+                if crop_offset != (0, 0):
+                    x1 += crop_offset[0]
+                    x2 += crop_offset[0]
+                    y1 += crop_offset[1]
+                    y2 += crop_offset[1]
 
                 # Get class and confidence
                 cls = int(box.cls[0])
@@ -729,8 +783,8 @@ class BathroomMonitor:
                 should_show = False
 
                 if cls in self.person_classes:
-                    # Show person boxes if persons toggle is enabled
-                    should_show = show_persons
+                    # Show person boxes only if confidence exceeds person_annotation_threshold
+                    should_show = show_persons and (conf >= self.person_annotation_threshold)
 
                 elif cls in self.merchandise_classes:
                     # Show item boxes if items toggle is enabled
@@ -766,6 +820,22 @@ class BathroomMonitor:
                           cv2.FONT_HERSHEY_SIMPLEX, self.text_scale, (255, 255, 255), self.font_thickness)
 
         return annotated_frame
+
+    def _monitor_keyboard(self):
+        """Background thread to monitor B/F/Z key presses to toggle overlays"""
+        while self.running:
+            try:
+                if msvcrt and msvcrt.kbhit():
+                    ch = msvcrt.getwch()
+                    if ch in ('b', 'B'):
+                        self.show_bboxes = not self.show_bboxes
+                    elif ch in ('f', 'F'):
+                        self.show_fps = not self.show_fps
+                    elif ch in ('z', 'Z'):
+                        self.show_zone = not self.show_zone
+            except Exception:
+                pass
+            time.sleep(0.05)
 
     def _draw_bathroom_zone(self, frame):
         """Draw bathroom monitoring zone on frame if enabled"""

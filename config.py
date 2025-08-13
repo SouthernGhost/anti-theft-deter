@@ -35,7 +35,7 @@ CONFIG = {
     # Detection Zone Configuration
     "bathroom_zone": {
         'x1': 0.01, 'y1': 0.5,   # Top-left corner (relative coordinates 0-1)
-        'x2': 0.99, 'y2': 0.99   # Bottom-right corner (relative coordinates 0-1)
+        'x2': 0.99, 'y2': 0.9   # Bottom-right corner (relative coordinates 0-1)
     },
 
     #Window Size
@@ -66,7 +66,11 @@ CONFIG = {
     # Detection Configuration
     "confidence_threshold": 0.1,
     "max_detections": 20,
-    "imgsz": 704,
+    "imgsz": 320,
+    # If True, run detection on the full frame; if False, detect only inside the bathroom zone crop
+    "detect_full_frame": True,
+    # Minimum confidence to draw person boxes (independent of detection threshold)
+    "person_annotation_threshold": 0.7,
 
     # Abandonment/Association Configuration
     # Time an item must remain in the zone without being with a person to be considered abandoned
