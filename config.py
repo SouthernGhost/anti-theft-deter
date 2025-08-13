@@ -21,7 +21,7 @@ MERCH_IDS_COCO = [24, 25, 26, 27, 28, 39, 40, 41, 42, 43, 44, 45,
 
 CONFIG = {
     # Model Configuration
-    "model_path": "yolo11n.pt",  # Path to YOLO model
+    "model_path": "yolo11s.pt",  # Path to YOLO model
 
     # Video Source Configuration
     "stream_mode": True,  # Set to True to use IP camera stream
@@ -74,9 +74,9 @@ CONFIG = {
 
     # Abandonment/Association Configuration
     # Time an item must remain in the zone without being with a person to be considered abandoned
-    "abandoned_timeout_seconds": 5,
+    "abandoned_timeout_seconds": 0,
     # Overlap threshold (fraction of item box area overlapped by a person box) to consider them overlapping
-    "association_overlap_threshold": 0.3,
+    "association_overlap_threshold": 0.5,
     # Continuous time the overlap must persist to consider the item as with a person
     "association_min_duration_seconds": 0.0,
     # If True, do not raise alarm for items in zone unless they are associated with a person

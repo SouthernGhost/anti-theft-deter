@@ -57,7 +57,7 @@ def start_app(CONFIG):
 
         # Keep main thread alive
         while monitor.running:
-            time.sleep(1)
+            time.sleep(0.05)
 
     except KeyboardInterrupt:
         print("\n⚠️  Keyboard interrupt received...")

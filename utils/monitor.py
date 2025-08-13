@@ -319,7 +319,6 @@ class BathroomMonitor:
 
         if self.cap:
             self.cap.release()
-        cv2.destroyAllWindows()
 
         print("\nBathroom monitoring system stopped.")
         self._print_stats()
@@ -479,7 +478,9 @@ class BathroomMonitor:
             # Handle key presses for quit/stats and runtime toggles
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):
-                self.stop()
+                # Signal shutdown; allow main/finalizer to handle cleanup
+                self.running = False
+                self.stopped = True
                 break
             elif key == ord('s'):
                 self._print_stats()
@@ -489,6 +490,12 @@ class BathroomMonitor:
                 self.show_bboxes = not self.show_bboxes
             elif key in (ord('z'), ord('Z')):
                 self.show_zone = not self.show_zone
+
+        # Close the display window from the same thread that created it
+        try:
+            cv2.destroyWindow('Bathroom Monitor')
+        except Exception:
+            pass
 
     def _monitor_bathroom_zone(self):
         """Thread function: Monitor bathroom zone for merchandise using overlap detection.
