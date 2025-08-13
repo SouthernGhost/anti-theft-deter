@@ -1,7 +1,3 @@
-from asyncio import ensure_future
-import os
-import time
-
 from utils.gui import start_app
 from utils.config import _ensure_settings_file, _load_settings
 
