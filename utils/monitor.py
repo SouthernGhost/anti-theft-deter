@@ -303,9 +303,6 @@ class BathroomMonitor:
             self.font_thickness = max(1, int(2 * self.scale_factor))
 
             print(f"Video resolution: {w}x{h}")
-            print(f"Scale factor: {self.scale_factor:.2f}")
-            print(f"Text scale: {self.text_scale:.2f}")
-            print(f"Line thickness: {self.thickness}")
 
             # Reset video position
             self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
