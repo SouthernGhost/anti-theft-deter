@@ -80,6 +80,8 @@ class BathroomMonitor:
         self.detect_full_frame = self.config.get("detect_full_frame", True)
         # Threshold for treating a person as valid (affects both results and annotation)
         self.person_annotation_threshold = self.config.get("person_annotation_threshold", 0.3)
+        # Separate threshold for association logic (decoupled from display threshold)
+        self.person_association_threshold = self.config.get("person_association_threshold", self.person_annotation_threshold)
         self.last_crop_offset = (0, 0)
 
         # Abandonment/Association configuration
@@ -120,7 +122,7 @@ class BathroomMonitor:
         # Audio announcement management
         self.is_speaking = False
         self.last_announcement_time = 0
-        self.min_announcement_interval = 2.0  # Minimum 2 seconds between announcements
+        self.min_announcement_interval = float(self.config.get("min_announcement_interval", 1.0))
 
         # Stats UI configuration
         self.show_stats = self.config["show_stats"]
@@ -532,12 +534,20 @@ class BathroomMonitor:
             # Debug: Track detected classes
             detected_classes = set()
 
+            # If detection was run on a cropped region, map boxes back using offset
+            offset_x, offset_y = self.last_crop_offset
+
             for result in self.current_results:
                 if result.boxes is None:
                     continue
 
                 for box in result.boxes:
                     x1, y1, x2, y2 = box.xyxy[0].tolist()
+                    if (not self.detect_full_frame) and (offset_x != 0 or offset_y != 0):
+                        x1 += offset_x
+                        x2 += offset_x
+                        y1 += offset_y
+                        y2 += offset_y
                     cls = int(box.cls[0])
                     conf = float(box.conf[0])
 
@@ -552,8 +562,8 @@ class BathroomMonitor:
 
                     if in_zone:
                         if cls in self.person_classes:
-                            # Only add person if confidence above configured threshold
-                            if conf >= self.person_annotation_threshold:
+                            # Use association threshold for monitoring/association logic
+                            if conf >= self.person_association_threshold:
                                 people_in_zone.append((x1, y1, x2, y2, conf, result))
                             #print(f"DEBUG: Person detected overlapping zone - Class ID: {cls}, Conf: {conf:.2f}")
                         elif cls in self.merchandise_classes:
@@ -594,7 +604,8 @@ class BathroomMonitor:
                         except Exception:
                             pass
 
-            time.sleep(1.0)  # Monitor every 1 second to allow audio to complete
+            # Use configurable monitoring frequency
+            time.sleep(self.config.get("detection_frequency", 0.1))
 
     def _update_item_tracks(self, people_in_zone, merchandise_in_zone):
         """Update per-item tracks, manage association with people, and flag abandonment.

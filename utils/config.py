@@ -5,7 +5,7 @@ from pathlib import Path
 # Project root (utils/ is one level below root)
 ROOT_DIR = Path(__file__).resolve().parents[1]
 SETTINGS_FILE = ROOT_DIR / 'settings.json'
-IMAGES_FOLDER = str(Path.home() / "Pcitures/Merchandise in Zone")
+IMAGES_FOLDER = str(Path.home() / "Pictures/Merchandise in Zone")
 
 COCO_ITEMS = [24,25,26,27,28,39,40,41,42,43,44,45,63,64,65,66,67,73,74,76,77,78,79]
 # Load template from existing root config.py as requested
@@ -28,7 +28,7 @@ except Exception:
         "person_classes": [0],
         "max_reconnect_attempts": 10,
         "reconnect_delay": 5,
-        "detection_frequency": 1.0,
+        "detection_frequency": 0.1,
         "confidence_threshold": 0.25,
         "max_detections": 50,
         "imgsz": 640,
@@ -36,6 +36,9 @@ except Exception:
         "association_overlap_threshold": 0.3,
         "association_min_duration_seconds": 0.0,
         "suppress_alarm_for_unassociated_items": True,
+        "min_announcement_interval": 1.0,
+        "person_annotation_threshold": 0.3,
+        "person_association_threshold": 0.3,
         "log_file": "logs/alerts.log",
         "images_folder": IMAGES_FOLDER
     }
