@@ -28,6 +28,7 @@ except Exception:
         "person_classes": [0],
         "max_reconnect_attempts": 10,
         "reconnect_delay": 5,
+        "detection_frequency": 1.0,
         "confidence_threshold": 0.25,
         "max_detections": 50,
         "imgsz": 640,
