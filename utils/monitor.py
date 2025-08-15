@@ -135,9 +135,11 @@ class BathroomMonitor:
         # FPS display
         self.show_fps = self.config["annotations"].get("show_fps", True)
         self.benchmark = Benchmark()
-        # Runtime annotation toggles
+        # Runtime annotation toggles (initialized from config, controlled at runtime)
         self.show_bboxes = True
         self.show_zone = self.config.get("annotations", {}).get("bathroom_zone", True)
+        self.show_persons = self.config.get("annotations", {}).get("persons", True)
+        self.show_items = self.config.get("annotations", {}).get("items", True)
 
         # Statistics
         self.stats = {
@@ -482,10 +484,23 @@ class BathroomMonitor:
                 self._print_stats()
             elif key in (ord('f'), ord('F')):
                 self.show_fps = not self.show_fps
+                print(f"Toggle FPS -> {'ON' if self.show_fps else 'OFF'}")
             elif key in (ord('b'), ord('B')):
                 self.show_bboxes = not self.show_bboxes
+                print(f"Toggle BBoxes -> {'ON' if self.show_bboxes else 'OFF'}")
             elif key in (ord('z'), ord('Z')):
                 self.show_zone = not self.show_zone
+                print(f"Toggle Zone -> {'ON' if self.show_zone else 'OFF'}")
+            elif key in (ord('p'), ord('P')):
+                self.show_persons = not self.show_persons
+                print(f"Toggle Persons -> {'ON' if self.show_persons else 'OFF'}")
+            elif key in (ord('i'), ord('I')):
+                self.show_items = not self.show_items
+                print(f"Toggle Items -> {'ON' if self.show_items else 'OFF'}")
+            elif key in (ord('p'), ord('P')):
+                self.show_persons = not self.show_persons
+            elif key in (ord('i'), ord('I')):
+                self.show_items = not self.show_items
 
         # Close the display window from the same thread that created it
         try:
@@ -756,10 +771,9 @@ class BathroomMonitor:
         if not self.show_bboxes:
             return annotated_frame
 
-        # Get annotation toggles
-        annotations = self.config.get("annotations", {})
-        show_persons = annotations.get("persons", True)
-        show_items = annotations.get("items", True)
+        # Runtime toggles behave like FPS: use the runtime flags only
+        show_persons_rt = self.show_persons
+        show_items_rt = self.show_items
 
         # Note: Bathroom zone is now drawn by _draw_bathroom_zone method
 
@@ -787,15 +801,15 @@ class BathroomMonitor:
 
                 if cls in self.person_classes:
                     # Show person boxes only if confidence exceeds person_annotation_threshold
-                    should_show = show_persons and (conf >= self.person_annotation_threshold)
+                    should_show = show_persons_rt and (conf >= self.person_annotation_threshold)
 
                 elif cls in self.merchandise_classes:
-                    # Show item boxes if items toggle is enabled
-                    should_show = show_items
+                    # Show item boxes if items toggle is enabled (runtime)
+                    should_show = show_items_rt
 
                 else:
-                    # Other classes - show if items toggle is enabled
-                    should_show = show_items
+                    # Other classes - show if items toggle is enabled (runtime)
+                    should_show = show_items_rt
 
                 if not should_show:
                     continue
@@ -825,29 +839,35 @@ class BathroomMonitor:
         return annotated_frame
 
     def _monitor_keyboard(self):
-        """Background thread to monitor B/F/Z key presses to toggle overlays"""
+        """Background thread to monitor B/F/Z/P/I key presses to toggle overlays"""
         while self.running:
             try:
                 if msvcrt and msvcrt.kbhit():
                     ch = msvcrt.getwch()
                     if ch in ('b', 'B'):
                         self.show_bboxes = not self.show_bboxes
+                        print(f"Toggle BBoxes -> {'ON' if self.show_bboxes else 'OFF'}")
                     elif ch in ('f', 'F'):
                         self.show_fps = not self.show_fps
+                        print(f"Toggle FPS -> {'ON' if self.show_fps else 'OFF'}")
                     elif ch in ('z', 'Z'):
                         self.show_zone = not self.show_zone
+                        print(f"Toggle Zone -> {'ON' if self.show_zone else 'OFF'}")
+                    elif ch in ('p', 'P'):
+                        self.show_persons = not self.show_persons
+                        print(f"Toggle Persons -> {'ON' if self.show_persons else 'OFF'}")
+                    elif ch in ('i', 'I'):
+                        self.show_items = not self.show_items
+                        print(f"Toggle Items -> {'ON' if self.show_items else 'OFF'}")
             except Exception:
                 pass
             time.sleep(0.05)
 
     def _draw_bathroom_zone(self, frame):
         """Draw bathroom monitoring zone on frame if enabled"""
-        # Check if bathroom zone annotation is enabled
-        annotations = self.config.get("annotations", {})
-        show_bathroom_zone = annotations.get("bathroom_zone", True)
-
-        if not show_bathroom_zone:
-            return  # Don't draw zone if disabled
+        # FPS-style: rely on runtime toggle only
+        if not self.show_zone:
+            return
 
         h, w = frame.shape[:2]
 
