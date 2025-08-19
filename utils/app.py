@@ -6,9 +6,6 @@ from typing import Dict, List
 
 from .monitor import BathroomMonitor
 
-import cv2
-import pyaudio
-
 
 def play_video_on_canvas():
     return
@@ -16,6 +13,7 @@ def play_video_on_canvas():
 
 def test_video_source(path:str):
     """Test the video source."""
+    import cv2
     cap = cv2.VideoCapture(path)
     while True:
         ret, frame = cap.read()
@@ -35,6 +33,7 @@ def test_video_source(path:str):
     cap.release()    
     return
 
+
 def draw_roi() -> Dict:
     """Draw and define the region to monitor."""
     return
@@ -42,6 +41,7 @@ def draw_roi() -> Dict:
 
 def get_audio_devices() -> Dict:
     """Get a list of audio devices."""
+    import pyaudio
     audio_devices = {}
     audio = pyaudio.PyAudio()
     filter_words = ["mapper", "virtual", "mix", "cable", 
@@ -53,17 +53,48 @@ def get_audio_devices() -> Dict:
         if info['maxOutputChannels']>=1:
             if not any(k in lower_name for k in filter_words):
                 #audio_devices.append(info['name'])
-                audio_devices[info['name']] = i
+                audio_devices[info['name']] = i-1
+    audio.terminate()
     return audio_devices
+
 
 def get_audio_devices_names(devices:dict) -> List:
     return list(devices.keys())
 
-def get_audio_devices_index(devices:dict) -> List:
-    return list(devices.values())
 
-def test_audio_device(index:int) -> None:
+def get_audio_device_index(devices:dict, sel_device:str) -> List:
+    return devices[sel_device]
+
+
+def test_audio_device(devices:dict, sel_device:str) -> None:
+    """Function to test selected audio output device.
+        Args:
+            devices (dict): A dictionary of audio output devices.
+            sel_device (str): Selected audio output device, taken from Combobox.var.
+    """
+    import pyaudio
+    import wave
+
+    index = devices[sel_device]
+    file = 'audio/speech1.wav'
+    wave_file = wave.open(file, 'rb')
+    audio = pyaudio.PyAudio()
+    stream = audio.open(format=audio.get_format_from_width(wave_file.getsampwidth()),
+                        channels=wave_file.getnchannels(),
+                        rate=wave_file.getframerate(),
+                        output=True,
+                        output_device_index=index)
+    chunk = 1024
+    data = wave_file.readframes(chunk)
+    while data:
+        stream.write(data)
+        data = wave_file.readframes(chunk)
+    stream.stop_stream()
+    stream.close()
+    wave_file.close()
+    audio.terminate()
     return
+
 
 def start_app(CONFIG):
     """Main function to run the bathroom monitoring system"""
@@ -125,3 +156,6 @@ def start_app(CONFIG):
         print("🛑 Stopping monitoring system...")
         monitor.stop()
         print("✅ System stopped successfully")
+
+
+print(get_audio_devices())
