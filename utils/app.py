@@ -21,20 +21,28 @@ def test_video_source(path:str):
         ret, frame = cap.read()
         if not ret:
             break
+        cv2.putText(frame, "Press Q to exit", 
+                        (20,40), 
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        1.0,
+                        (255,255,255),
+                        2
+                    )
         cv2.imshow("Video Source Test", frame)
-        cv2.waitKey(33)
+        if cv2.waitKey(33) & 0xFF in [ord('q'), ord('Q')]:
+            break
     cv2.destroyAllWindows()
-    cap.release()
-
+    cap.release()    
+    return
 
 def draw_roi() -> Dict:
     """Draw and define the region to monitor."""
     return
 
 
-def get_audio_devices() -> List:
+def get_audio_devices() -> Dict:
     """Get a list of audio devices."""
-    audio_devices = []
+    audio_devices = {}
     audio = pyaudio.PyAudio()
     filter_words = ["mapper", "virtual", "mix", "cable", 
                         "loopback", "digital", "stream",
@@ -44,9 +52,18 @@ def get_audio_devices() -> List:
         lower_name = info['name'].lower()
         if info['maxOutputChannels']>=1:
             if not any(k in lower_name for k in filter_words):
-                audio_devices.append(info['name'])
+                #audio_devices.append(info['name'])
+                audio_devices[info['name']] = i
     return audio_devices
 
+def get_audio_devices_names(devices:dict) -> List:
+    return list(devices.keys())
+
+def get_audio_devices_index(devices:dict) -> List:
+    return list(devices.values())
+
+def test_audio_device(index:int) -> None:
+    return
 
 def start_app(CONFIG):
     """Main function to run the bathroom monitoring system"""
