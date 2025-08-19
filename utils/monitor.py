@@ -171,9 +171,6 @@ class BathroomMonitor:
             print(f"⚠️  Failed to initialize logger: {e}")
             self.logger = None
 
-        # Create images directory for saving alerts
-        os.makedirs("images", exist_ok=True)
-
     def _initialize_video_capture(self):
         """Initialize video capture with stream mode support and error handling"""
         if self.stream_mode:
