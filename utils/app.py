@@ -15,11 +15,13 @@ from utils.gui import Button, Textbox, Window
 from utils.monitor import BathroomMonitor
 
 def get_resource_path(path):
-    """Get absolute path of a file for pyinstaller builds."""
-
-    if hasattr(sys, '_MEIPASS'):
-        return os.path.join(sys._MEIPASS, path)
-    return os.path.join(os.path.abspath('.'), path) 
+    """Get absolute path to resource, works for dev and cx_Freeze build"""
+    if getattr(sys, 'frozen', False):  # running as exe
+        base_path = sys._MEIPASS if hasattr(sys, '_MEIPASS') else os.path.dirname(sys.executable)
+    else:  # running as script
+        base_path = os.path.dirname(__file__)
+    return os.path.join(base_path, path)
+    
 
 def create_roi(video_path, rect_dict, button:Button, parent:Window):
     """Draw ROI for monitoring."""
