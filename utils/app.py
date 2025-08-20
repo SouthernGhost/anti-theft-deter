@@ -1,11 +1,26 @@
 """Utility functions for the Home GUI."""
 
+from csv import Error
 import os
 import time
 from typing import Dict, List
 
+import tkinter as tk
+from tkinter import filedialog
+
 from .monitor import BathroomMonitor
-from .gui import Button
+from .gui import Button, Textbox
+
+
+def get_vid_file_path(button:Button, textbox:Textbox):
+    """Open a dialog and select a video file."""
+    button.button.config(state='disabled')
+    vid_path = filedialog.askopenfilename(title='Select a Video File',
+                                            filetypes=[("Video files", "*.mp4 *.avi *.mkv")])
+    button.button.config(state='normal')
+    textbox.textbox.delete(0, tk.END)
+    textbox.textbox.insert(0, vid_path)
+    return
 
 
 def play_video_on_canvas():
@@ -43,21 +58,15 @@ def draw_roi() -> Dict:
 
 
 def get_audio_devices() -> Dict:
-    """Get a list of audio devices."""
-    import pyaudio
+    import sounddevice as sd
     audio_devices = {}
-    audio = pyaudio.PyAudio()
     filter_words = ["mapper", "virtual", "mix", "cable", 
                         "loopback", "digital", "stream",
-                        "driver"]
-    for i in range(audio.get_device_count()):
-        info = audio.get_device_info_by_index(i)
-        lower_name = info['name'].lower()
-        if info['maxOutputChannels']>=1:
-            if not any(k in lower_name for k in filter_words):
-                #audio_devices.append(info['name'])
-                audio_devices[info['name']] = i-1
-    audio.terminate()
+                        "driver", "microphone", "conexant"]
+    for index, device in enumerate(sd.query_devices()):
+        if device['max_output_channels']>0:
+            if not any(word.lower() in device['name'].lower() for word in filter_words):
+                audio_devices[device['name']] = index
     return audio_devices
 
 
@@ -75,27 +84,18 @@ def test_audio_device(devices:dict, sel_device:str, button:Button) -> None:
             devices (dict): A dictionary of audio output devices.
             sel_device (str): Selected audio output device, taken from Combobox.var.
     """
-    import pyaudio
-    import wave
+
+    import sounddevice as sd
+    import soundfile as sf
     button.button.config(state='disabled')
     index = devices[sel_device]
     file = 'audio/speech1.wav'
-    wave_file = wave.open(file, 'rb')
-    audio = pyaudio.PyAudio()
-    stream = audio.open(format=audio.get_format_from_width(wave_file.getsampwidth()),
-                        channels=wave_file.getnchannels(),
-                        rate=wave_file.getframerate(),
-                        output=True,
-                        output_device_index=index)
-    chunk = 1024
-    data = wave_file.readframes(chunk)
-    while data:
-        stream.write(data)
-        data = wave_file.readframes(chunk)
-    stream.stop_stream()
-    stream.close()
-    wave_file.close()
-    audio.terminate()
+    try:
+        data, samplerate = sf.read(file)
+        sd.play(data, samplerate, device=index)
+        sd.wait()
+    except Exception as e:
+        button.button.config(state='normal')
     button.button.config(state='normal')
     return
 
@@ -160,6 +160,3 @@ def start_app(CONFIG):
         print("🛑 Stopping monitoring system...")
         monitor.stop()
         print("✅ System stopped successfully")
-
-
-print(get_audio_devices())
