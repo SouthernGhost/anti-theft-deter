@@ -23,7 +23,7 @@ except Exception:
         "window_size": [1280, 720],
         "show_stats": False,
         "stats_scale_factor": False,
-        "annotations": {"bathroom_zone": True, "persons": True, "items": True, "show_fps": True},
+        "annotations": {"bathroom_zone": False, "persons": False, "items": False, "show_fps": False},
         "merchandise_classes": COCO_ITEMS,
         "person_classes": [0],
         "max_reconnect_attempts": 10,
