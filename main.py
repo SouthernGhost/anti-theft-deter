@@ -21,7 +21,7 @@ lbl_source = gui.Label(tk_win=win_home,
 txt_source = gui.Textbox(tk_win=win_home, 
                             pos=(10,50), 
                             width=50, 
-                            default_text=CONFIG['video_source'])
+                        )
 
 
 #Calculate button x position based on textbox's width and font character width
