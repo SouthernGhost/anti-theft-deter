@@ -4,8 +4,10 @@ from pathlib import Path
 
 # Project root (utils/ is one level below root)
 ROOT_DIR = Path(__file__).resolve().parents[1]
-SETTINGS_FILE = ROOT_DIR / 'settings.json'
-IMAGES_FOLDER = str(Path.home() / "Pictures/Merchandise in Zone")
+SETTINGS_FILE = (Path.home() / 'BathroomMonitor/settings.json')
+MODEL_PATH = Path.home() / "BathroomMonitor/yolo11n.pt"
+IMAGES_FOLDER = (Path.home() / "Pictures/Merchandise in Zone")
+LOGS_FOLDER = Path.home() / "BathroomMonitor/logs"
 
 COCO_ITEMS = [24,25,26,27,28,39,40,41,42,43,44,45,63,64,65,66,67,73,74,76,77,78,79]
 # Load template from existing root config.py as requested
@@ -15,7 +17,7 @@ try:
 except Exception:
     # Minimal fallback template if root config.py is not available
     CONFIG_TEMPLATE = {
-        "model_path": "yolo11n.pt",
+        "model_path": MODEL_PATH,
         "stream_mode": False,
         "video_source": "",
         "ip_camera_url": "",
@@ -31,15 +33,15 @@ except Exception:
         "detection_frequency": 0.1,
         "confidence_threshold": 0.25,
         "max_detections": 50,
-        "imgsz": 640,
+        "imgsz": 416,
         "abandoned_timeout_seconds": 5,
         "association_overlap_threshold": 0.3,
         "association_min_duration_seconds": 0.0,
         "suppress_alarm_for_unassociated_items": True,
-        "min_announcement_interval": 1.0,
+        "min_announcement_interval": 0.001,
         "person_annotation_threshold": 0.3,
         "person_association_threshold": 0.3,
-        "log_file": "logs/alerts.log",
+        "log_file": LOGS_FOLDER,
         "images_folder": IMAGES_FOLDER
     }
 
