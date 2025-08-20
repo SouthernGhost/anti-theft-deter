@@ -3,11 +3,12 @@ import threading
 from utils import gui
 from utils.app import get_audio_devices_names, get_audio_devices, test_audio_device
 from utils.app import get_vid_file_path, test_video_source
-from utils.app import on_checkbox_click
+from utils.app import on_checkbox_click, create_roi
 from utils.app import start_app
-from utils.config import _ensure_settings_file, _load_settings
+from utils.config import _ensure_settings_file, _load_settings, _save_settings, _get_audio_file
 
 
+_get_audio_file()
 _ensure_settings_file()
 CONFIG = _load_settings()
 
@@ -22,7 +23,6 @@ txt_source = gui.Textbox(tk_win=win_home,
                             pos=(10,50), 
                             width=50, 
                         )
-
 
 #Calculate button x position based on textbox's width and font character width
 btn_browse = gui.Button(tk_win=win_home, 
@@ -57,8 +57,19 @@ btn_test_audio = gui.Button(tk_win=win_home,
                             cmd=lambda:threading.Thread(target=test_audio_device,
                                                         args=(audio_devices, 
                                                                 combo_audio_devices.var.get(),
-                                                                btn_test_audio),
+                                                                btn_test_audio,
+                                                                CONFIG['audio_file']),
                                                         daemon=True).start())
+
+btn_create_roi = gui.Button(tk_win=win_home,
+                            text="Define ROI",
+                            pos=(10,140),
+                            cmd=lambda:threading.Thread(target=create_roi,
+                                                        args=(txt_source.textbox.get(),
+                                                                CONFIG['bathroom_zone'],
+                                                                btn_create_roi,
+                                                                win_home),
+                                                                daemon=True).start())
 
 chk_fps = gui.Checkbox(tk_win=win_home, 
                         text="Show fps", 
@@ -92,12 +103,26 @@ chk_items_bbox = gui.Checkbox(tk_win=win_home,
                                                 args=(CONFIG["annotations"], 'items'),
                                                 daemon=True).start())
 
+btn_save = gui.Button(tk_win=win_home,
+                        text="Save",
+                        pos=(240,240),
+                        cmd=lambda:threading.Thread(target=_save_settings,
+                                                    args=(CONFIG,),
+                                                    daemon=True).start())
+
+disbale_buttons = [btn_browse, btn_create_roi, btn_test_audio, btn_test_source, btn_save]
+
 btn_start = gui.Button(tk_win=win_home,
                         text="Start",
-                        pos=(100,240),
+                        pos=(300,240),
                         cmd=lambda:threading.Thread(target=start_app,
-                                                    args=(CONFIG, btn_start),
+                                                    args=(CONFIG, btn_start, disbale_buttons),
                                                     daemon=True).start())
+
+btn_quit = gui.Button(tk_win=win_home,
+                        text="Quit",
+                        pos=(360,240),
+                        cmd=lambda:win_home.root.quit())
 #def start_app():
 #    win_home.launch_window()
 
