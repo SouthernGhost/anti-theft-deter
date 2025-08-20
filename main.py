@@ -3,13 +3,13 @@ import threading
 from utils import gui
 from utils.app import get_audio_devices_names, get_audio_devices, test_audio_device
 from utils.app import get_vid_file_path, test_video_source
+from utils.app import on_checkbox_click
+from utils.app import start_app
 from utils.config import _ensure_settings_file, _load_settings
 
 
 _ensure_settings_file()
 CONFIG = _load_settings()
-
-
 
 win_home = gui.Window("Bathroom Monitor", (640,480), resizable=False)
 
@@ -29,7 +29,7 @@ btn_browse = gui.Button(tk_win=win_home,
                         text="Browse", 
                         pos=((10+(50*6)+10),50),
                         cmd=lambda: threading.Thread(target=get_vid_file_path,
-                                                        args=(btn_browse,txt_source),
+                                                        args=(btn_browse,txt_source,CONFIG),
                                                         daemon=True).start())
 
 btn_test_source = gui.Button(tk_win=win_home, 
@@ -63,25 +63,45 @@ btn_test_audio = gui.Button(tk_win=win_home,
 chk_fps = gui.Checkbox(tk_win=win_home, 
                         text="Show fps", 
                         pos=(10, 180), 
-                        state=CONFIG['annotations']['show_fps'])
+                        state=CONFIG['annotations']['show_fps'],
+                        cmd=lambda:threading.Thread(target=on_checkbox_click,
+                                                args=(CONFIG["annotations"], 'show_fps'),
+                                                daemon=True).start())
 
 chk_bathroom_zone = gui.Checkbox(tk_win=win_home, 
                                     text="Show bathroom zone", 
                                     pos=(10,200), 
-                                    state=CONFIG['annotations']['bathroom_zone'])
+                                    state=CONFIG['annotations']['bathroom_zone'],
+                                    cmd=lambda:threading.Thread(target=on_checkbox_click,
+                                                args=(CONFIG["annotations"], 'bathroom_zone'),
+                                                daemon=True).start())
 
 chk_person_bbox = gui.Checkbox(tk_win=win_home, 
                                 text="Show person bounding boxes", 
-                                pos=(10,220))
+                                pos=(10,220),
+                                state=CONFIG['annotations']['persons'],
+                                cmd=lambda:threading.Thread(target=on_checkbox_click,
+                                                args=(CONFIG["annotations"], 'persons'),
+                                                daemon=True).start())
 
 chk_items_bbox = gui.Checkbox(tk_win=win_home, 
                                 text="Show items bounding boxes", 
-                                pos=(10,240))
+                                pos=(10,240),
+                                state=CONFIG['annotations']['items'],
+                                cmd=lambda:threading.Thread(target=on_checkbox_click,
+                                                args=(CONFIG["annotations"], 'items'),
+                                                daemon=True).start())
 
-
-def start_app():
-    win_home.launch_window()
+btn_start = gui.Button(tk_win=win_home,
+                        text="Start",
+                        pos=(100,240),
+                        cmd=lambda:threading.Thread(target=start_app,
+                                                    args=(CONFIG, btn_start),
+                                                    daemon=True).start())
+#def start_app():
+#    win_home.launch_window()
 
 if __name__ == "__main__":
     #start_app(CONFIG)
-    start_app()
+    win_home.launch_window()
+    #start_app(CONFIG)
