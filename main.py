@@ -32,7 +32,8 @@ btn_test_source = gui.Button(tk_win=win_home,
                                 text="Test", 
                                 pos=((10+(50*6)+80),50), 
                                 cmd=lambda: threading.Thread(target=test_video_source,
-                                                                args=(txt_source.textbox.get(),),
+                                                                args=(txt_source.textbox.get(),
+                                                                        btn_test_source),
                                                                 daemon=True).start())
 
 audio_devices = get_audio_devices() 
@@ -48,10 +49,11 @@ combo_audio_devices = gui.Combobox(tk_win=win_home,
 
 btn_test_audio = gui.Button(tk_win=win_home, 
                             text="Test", 
-                            pos=(combo_audio_devices.combobox.winfo_width()+20,100),
+                            pos=(520,100),
                             cmd=lambda:threading.Thread(target=test_audio_device,
                                                         args=(audio_devices, 
-                                                        combo_audio_devices.var.get(),),
+                                                                combo_audio_devices.var.get(),
+                                                                btn_test_audio),
                                                         daemon=True).start())
 
 chk_fps = gui.Checkbox(tk_win=win_home, 

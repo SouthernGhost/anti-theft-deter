@@ -5,16 +5,18 @@ import time
 from typing import Dict, List
 
 from .monitor import BathroomMonitor
+from .gui import Button
 
 
 def play_video_on_canvas():
     return
 
 
-def test_video_source(path:str):
+def test_video_source(path:str, button:Button):
     """Test the video source."""
     import cv2
     cap = cv2.VideoCapture(path)
+    button.button.config(state='disabled')
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -30,7 +32,8 @@ def test_video_source(path:str):
         if cv2.waitKey(33) & 0xFF in [ord('q'), ord('Q')]:
             break
     cv2.destroyAllWindows()
-    cap.release()    
+    cap.release()
+    button.button.config(state='normal')
     return
 
 
@@ -66,7 +69,7 @@ def get_audio_device_index(devices:dict, sel_device:str) -> List:
     return devices[sel_device]
 
 
-def test_audio_device(devices:dict, sel_device:str) -> None:
+def test_audio_device(devices:dict, sel_device:str, button:Button) -> None:
     """Function to test selected audio output device.
         Args:
             devices (dict): A dictionary of audio output devices.
@@ -74,7 +77,7 @@ def test_audio_device(devices:dict, sel_device:str) -> None:
     """
     import pyaudio
     import wave
-
+    button.button.config(state='disabled')
     index = devices[sel_device]
     file = 'audio/speech1.wav'
     wave_file = wave.open(file, 'rb')
@@ -93,6 +96,7 @@ def test_audio_device(devices:dict, sel_device:str) -> None:
     stream.close()
     wave_file.close()
     audio.terminate()
+    button.button.config(state='normal')
     return
 
 
