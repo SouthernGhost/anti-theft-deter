@@ -723,11 +723,13 @@ class BathroomMonitor:
                     timestamp = now.strftime("%d-%m-%Y_%H-%M-%S")
                     image_name = f"img_{timestamp}.jpg"
                     image_path = os.path.join(self.config['images_folder'], image_name)
+                    min_dim = min(result_to_save.orig_img.shape[0], result_to_save.orig_img.shape[1])
+                    fontscale = min_dim/1000
                     result_to_save.orig_img = cv2.putText(img=result_to_save.orig_img, 
                                                             text=timestamp, org=(20,50),
                                                             fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                                                            fontScale=2.0, color=(255,255,255),
-                                                            thickness=6)
+                                                            fontScale=fontscale, color=(255,255,255),
+                                                            thickness=2)
                     cv2.imwrite(image_path, result_to_save.orig_img)
                     track['image_saved_for_association'] = True
                     if self.logger:
@@ -1004,7 +1006,7 @@ class BathroomMonitor:
         def play_audio_file():
             try:
                 # Play announcement.wav file with SND_NOSTOP to prevent interruption
-                winsound.PlaySound("audio/speech1.wav", winsound.SND_FILENAME | winsound.SND_NOSTOP)
+                winsound.PlaySound(self.config['audio_file'], winsound.SND_FILENAME | winsound.SND_NOSTOP)
 
                 # Mark speaking as complete
                 self.is_speaking = False

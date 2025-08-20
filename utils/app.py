@@ -149,11 +149,6 @@ def test_video_source(path: str, button: "Button") -> None:
         button.button.config(state='normal')
 
 
-def draw_roi() -> Dict:
-    """Draw and define the region of interest (to be implemented)."""
-    return {}
-
-
 def get_audio_devices() -> Dict[str, int]:
     """Return a dictionary of available audio output devices."""
     filter_words = {
@@ -179,11 +174,11 @@ def get_audio_device_index(devices: Dict[str, int], sel_device: str) -> int:
     return devices[sel_device]
 
 
-def test_audio_device(devices: Dict[str, int], sel_device: str, button: "Button") -> None:
+def test_audio_device(devices: Dict[str, int], sel_device: str, button: "Button", file:str) -> None:
     """Play a test sound on the selected audio output device."""
     button.button.config(state='disabled')
     try:
-        file = 'audio/speech1.wav'
+        file = file
         data, samplerate = sf.read(file)
         sd.play(data, samplerate, device=devices[sel_device])
         sd.wait()
