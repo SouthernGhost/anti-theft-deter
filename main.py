@@ -1,7 +1,8 @@
 import threading
 
 from utils import gui
-from utils.app import get_audio_devices_names, test_video_source, get_audio_devices, test_audio_device
+from utils.app import get_audio_devices_names, get_audio_devices, test_audio_device
+from utils.app import get_vid_file_path, test_video_source
 from utils.config import _ensure_settings_file, _load_settings
 
 
@@ -26,7 +27,10 @@ txt_source = gui.Textbox(tk_win=win_home,
 #Calculate button x position based on textbox's width and font character width
 btn_browse = gui.Button(tk_win=win_home, 
                         text="Browse", 
-                        pos=((10+(50*6)+10),50))
+                        pos=((10+(50*6)+10),50),
+                        cmd=lambda: threading.Thread(target=get_vid_file_path,
+                                                        args=(btn_browse,txt_source),
+                                                        daemon=True).start())
 
 btn_test_source = gui.Button(tk_win=win_home, 
                                 text="Test", 
