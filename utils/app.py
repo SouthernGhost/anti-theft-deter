@@ -1,3 +1,6 @@
+import os
+import time
+
 import tkinter as tk
 from tkinter import filedialog
 from typing import Dict, List
@@ -6,8 +9,10 @@ import sounddevice as sd
 import soundfile as sf
 
 from utils.gui import Button, Textbox
+from utils.monitor import BathroomMonitor
 
-def get_vid_file_path(button:Button, textbox:Textbox) -> None:
+
+def get_vid_file_path(button:Button, textbox:Textbox, config:dict) -> None:
     """Open a dialog and select a video file."""
     button.button.config(state='disabled')
     try:
@@ -19,6 +24,7 @@ def get_vid_file_path(button:Button, textbox:Textbox) -> None:
         if vid_path:
             textbox.textbox.insert(0, vid_path)
     finally:
+        config['video_source'] = vid_path
         button.button.config(state='normal')
 
 
@@ -91,3 +97,71 @@ def test_audio_device(devices: Dict[str, int], sel_device: str, button: "Button"
         pass
     finally:
         button.button.config(state='normal')
+
+
+def on_checkbox_click(config:dict, key:bool):
+    config[key] = not config[key]
+
+
+def start_app(CONFIG, button:Button):
+    """Main function to run the bathroom monitoring system"""
+
+    button.button.config(state='disabled')
+    print("🚀 Initializing Bathroom Monitor...")
+    print("📋 Configuration:")
+    print(f"   Model: {CONFIG['model_path']}")
+    print(f"   Stream Mode: {'✅ Enabled' if CONFIG['stream_mode'] else '❌ Disabled'}")
+
+    if CONFIG['stream_mode']:
+        print(f"   Source: {CONFIG['ip_camera_url']} (IP Camera)")
+    else:
+        print(f"   Source: {CONFIG['video_source']} (Local)")
+
+    zone = CONFIG['bathroom_zone']
+    print(f"   Zone: ({zone['x1']:.2f}, {zone['y1']:.2f}) to ({zone['x2']:.2f}, {zone['y2']:.2f})")
+    print(f"   Show Stats: {'✅ Yes' if CONFIG['show_stats'] else '❌ No'}")
+
+    # Display annotation toggles
+    annotations = CONFIG.get('annotations', {})
+    print(f"   Annotation Toggles:")
+    print(f"     Bathroom Zone: {'✅ Visible' if annotations.get('bathroom_zone', True) else '❌ Hidden'}")
+    print(f"     Person Boxes: {'✅ Visible' if annotations.get('persons', True) else '❌ Hidden'}")
+    print(f"     Item Boxes: {'✅ Visible' if annotations.get('items', True) else '❌ Hidden'}")
+
+
+
+    # Create and start monitor
+    try:
+        os.makedirs(CONFIG['images_folder'], exist_ok=True)
+        monitor = BathroomMonitor(CONFIG)
+    except (ValueError, ConnectionError) as e:
+        print(f"❌ Failed to initialize monitor: {e}")
+        return
+
+    try:
+        print("🎯 Starting monitoring system...")
+        monitor.start()
+
+        print("✅ Monitoring system started successfully!")
+        print("📋 Controls:")
+        print("   - Press 'q' to quit")
+        print("   - Press 's' to show statistics")
+        print("   - Press 'f' to toggle FPS overlay")
+        print("   - Close video window to stop")
+
+        if CONFIG['stream_mode']:
+            print("🌐 Stream monitoring active - system will auto-reconnect if stream drops")
+
+        # Keep main thread alive
+        while monitor.running:
+            time.sleep(CONFIG['detection_frequency'])
+
+    except KeyboardInterrupt:
+        print("\n⚠️  Keyboard interrupt received...")
+    except Exception as e:
+        print(f"\n❌ Unexpected error: {e}")
+    finally:
+        print("🛑 Stopping monitoring system...")
+        button.button.config(state='normal')
+        monitor.stop()
+        print("✅ System stopped successfully")
