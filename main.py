@@ -116,7 +116,7 @@ btn_start = gui.Button(tk_win=win_home,
                         text="Start",
                         pos=(300,240),
                         cmd=lambda:threading.Thread(target=start_app,
-                                                    args=(CONFIG, btn_start, disbale_buttons),
+                                                    args=(CONFIG, btn_start, disbale_buttons, txt_source),
                                                     daemon=True).start())
 
 btn_quit = gui.Button(tk_win=win_home,
