@@ -17,8 +17,8 @@ except Exception:
     CONFIG_TEMPLATE = {
         "model_path": "yolo11n.pt",
         "stream_mode": False,
-        "video_source": "videos/vid0h.mp4",
-        "ip_camera_url": "http://127.0.0.1:8080/video",
+        "video_source": "",
+        "ip_camera_url": "",
         "bathroom_zone": {"x1": 0.01, "y1": 0.5, "x2": 0.99, "y2": 0.99},
         "window_size": [1280, 720],
         "show_stats": False,
