@@ -192,10 +192,11 @@ def on_checkbox_click(config:dict, key:bool):
     config[key] = not config[key]
 
 
-def start_app(CONFIG, button:Button, disable:list):
+def start_app(CONFIG, button:Button, disable:list, textbox:Textbox):
     """Main function to run the bathroom monitoring system"""
 
     button.button.config(state='disabled')
+    CONFIG['video_source'] = textbox.textbox.get()
     for btn in disable:
         btn.button.config(state='disabled')
     print("🚀 Initializing Bathroom Monitor...")
