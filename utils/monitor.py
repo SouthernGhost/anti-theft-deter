@@ -1019,7 +1019,7 @@ class BathroomMonitor:
                 print(f"Audio File Error: {e}")
                 # Fallback to buzzer beeps if audio file fails
                 try:
-                    play_buzzer(frequency=1000, duration=1)
+                    play_buzzer(frequency=500, duration=1)
                 except:
                     pass
                 self.is_speaking = False
