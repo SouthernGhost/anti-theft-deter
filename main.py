@@ -1,7 +1,7 @@
 import threading
 
 from utils import gui
-from utils.app import get_audio_devices_names, get_audio_devices, test_audio_device
+from utils.app import get_audio_device_index, get_audio_devices_names, get_audio_devices, test_audio_device
 from utils.app import get_vid_file_path, test_video_source
 from utils.app import on_checkbox_click, create_roi
 from utils.app import start_app
@@ -11,6 +11,12 @@ from utils.config import _ensure_settings_file, _load_settings, _save_settings, 
 _get_audio_file()
 _ensure_settings_file()
 CONFIG = _load_settings()
+
+def on_combo_select(event):
+    CONFIG['audio_device'] = get_audio_device_index(audio_devices,
+                                                    combo_audio_devices.combobox.get()
+                                                    )
+    return
 
 win_home = gui.Window("Bathroom Monitor", (640,480), resizable=False)
 
@@ -50,6 +56,8 @@ combo_audio_devices = gui.Combobox(tk_win=win_home,
                                     pos=combo_audio_devices_pos, 
                                     options=get_audio_devices_names(audio_devices),
                                     width=30)
+
+combo_audio_devices.combobox.bind("<<ComboboxSelected>>", on_combo_select)
 
 btn_test_audio = gui.Button(tk_win=win_home, 
                             text="Test", 
@@ -105,7 +113,7 @@ chk_items_bbox = gui.Checkbox(tk_win=win_home,
 
 btn_save = gui.Button(tk_win=win_home,
                         text="Save",
-                        pos=(240,240),
+                        pos=(400,240),
                         cmd=lambda:threading.Thread(target=_save_settings,
                                                     args=(CONFIG,),
                                                     daemon=True).start())
@@ -114,14 +122,14 @@ disbale_buttons = [btn_browse, btn_create_roi, btn_test_audio, btn_test_source, 
 
 btn_start = gui.Button(tk_win=win_home,
                         text="Start",
-                        pos=(300,240),
+                        pos=(460,240),
                         cmd=lambda:threading.Thread(target=start_app,
                                                     args=(CONFIG, btn_start, disbale_buttons, txt_source),
                                                     daemon=True).start())
 
 btn_quit = gui.Button(tk_win=win_home,
                         text="Quit",
-                        pos=(360,240),
+                        pos=(520,240),
                         cmd=lambda:win_home.root.quit())
 #def start_app():
 #    win_home.launch_window()
