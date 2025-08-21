@@ -22,7 +22,7 @@ except Exception:
     CONFIG_TEMPLATE = {
         "model_path": MODEL_PATH,
         "audio_file": AUDIO_FILE,
-        "audio_device": None,
+        "audio_device": 0,
         "stream_mode": False,
         "video_source": "",
         "ip_camera_url": "",
@@ -86,16 +86,14 @@ def _save_settings(config:dict):
             json.dump(config, f, indent=2)
 
 
-import os
-import requests
-from pathlib import Path
-
 def _get_audio_file():
     path = Path.home() / "BathroomMonitor/audio/"
     os.makedirs(path, exist_ok=True)
     file_path = os.path.join(path, 'speech1.wav')
     repo_url = 'https://raw.githubusercontent.com/SouthernGhost/anti-theft-deter/main/audio/speech1.wav'
 
+    if os.path.isfile(file_path):
+        return
     if not os.path.isfile(file_path):
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         print(f"Downloading {repo_url}...")
@@ -106,13 +104,7 @@ def _get_audio_file():
             print(f"Saved {file_path}")
         else:
             print(f"Failed to download {file_path}. Status code: {response.status_code}")
-    else:
-        print(f"{file_path} already exists. Skipping.")
+        return file_path
 
-    return file_path
-
-
-_ensure_settings_file()
-CONFIG = _load_settings()
 
 
