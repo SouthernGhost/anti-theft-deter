@@ -6,6 +6,8 @@ from datetime import datetime
 import winsound
 import logging
 from pathlib import Path
+import sounddevice as sd
+import soundfile as sf
 try:
     import msvcrt  # For non-blocking key reads on Windows
 except Exception:
@@ -13,7 +15,7 @@ except Exception:
 
 import torch
 
-from .config import CONFIG
+#from utils.config import CONFIG
 
 from ultralytics import YOLO
 from .benchmark import Benchmark
@@ -1006,7 +1008,9 @@ class BathroomMonitor:
         def play_audio_file():
             try:
                 # Play announcement.wav file with SND_NOSTOP to prevent interruption
-                winsound.PlaySound(self.config['audio_file'], winsound.SND_FILENAME | winsound.SND_NOSTOP)
+                data, samplerate = sf.read(self.config['audio_file'])
+                sd.play(data, samplerate, device=self.config['audio_device'])
+                sd.wait()
 
                 # Mark speaking as complete
                 self.is_speaking = False
@@ -1015,14 +1019,17 @@ class BathroomMonitor:
                 print(f"Audio File Error: {e}")
                 # Fallback to buzzer beeps if audio file fails
                 try:
-                    for i in range(3):
-                        winsound.Beep(1000, 200)  # 1000Hz for 200ms
-                        if i < 2:
-                            time.sleep(0.1)
+                    play_buzzer(frequency=1000, duration=1)
                 except:
                     pass
                 self.is_speaking = False
+        def play_buzzer(frequency=1000, duration=0.5, samplerate=44100, device=None):
+            t = np.linspace(0, duration, int(samplerate * duration), endpoint=False)
+            waveform = 0.5 * np.sin(2 * np.pi * frequency * t)  # amplitude 0.5
+            sd.play(waveform, samplerate, device=device)
+            sd.wait()
 
+# Example: play buzzer on default device
         threading.Thread(target=play_audio_file, daemon=True).start()
 
     def _print_stats(self):
