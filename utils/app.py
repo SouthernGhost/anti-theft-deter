@@ -192,10 +192,9 @@ def on_checkbox_click(config:dict, key:bool):
     config[key] = not config[key]
 
 
-def start_app(CONFIG, button:Button, disable:list, textbox:Textbox):
+def start_app(CONFIG, disable:list, textbox:Textbox):
     """Main function to run the bathroom monitoring system"""
 
-    button.button.config(state='disabled')
     CONFIG['video_source'] = textbox.textbox.get()
     for btn in disable:
         btn.button.config(state='disabled')
@@ -228,6 +227,8 @@ def start_app(CONFIG, button:Button, disable:list, textbox:Textbox):
         monitor = BathroomMonitor(CONFIG)
     except (ValueError, ConnectionError) as e:
         print(f"❌ Failed to initialize monitor: {e}")
+        for btn in disable:
+            btn.button.config(state='normal')
         return
 
     try:
@@ -254,7 +255,6 @@ def start_app(CONFIG, button:Button, disable:list, textbox:Textbox):
         print(f"\n❌ Unexpected error: {e}")
     finally:
         print("🛑 Stopping monitoring system...")
-        button.button.config(state='normal')
         for btn in disable:
             btn.button.config(state='normal')
         monitor.stop()

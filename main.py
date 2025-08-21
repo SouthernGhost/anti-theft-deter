@@ -118,14 +118,14 @@ btn_save = gui.Button(tk_win=win_home,
                                                     args=(CONFIG,),
                                                     daemon=True).start())
 
-disbale_buttons = [btn_browse, btn_create_roi, btn_test_audio, btn_test_source, btn_save]
-
 btn_start = gui.Button(tk_win=win_home,
                         text="Start",
                         pos=(460,240),
                         cmd=lambda:threading.Thread(target=start_app,
-                                                    args=(CONFIG, btn_start, disbale_buttons, txt_source),
+                                                    args=(CONFIG, disbale_buttons, txt_source),
                                                     daemon=True).start())
+
+disbale_buttons = [btn_browse, btn_create_roi, btn_test_audio, btn_test_source, btn_save, btn_start]
 
 btn_quit = gui.Button(tk_win=win_home,
                         text="Quit",
