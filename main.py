@@ -5,10 +5,10 @@ from utils.app import get_audio_device_index, get_audio_devices_names, get_audio
 from utils.app import get_vid_file_path, test_video_source
 from utils.app import on_checkbox_click, create_roi
 from utils.app import start_app
-from utils.config import _ensure_settings_file, _load_settings, _save_settings, _get_audio_file
+from utils.config import _ensure_settings_file, _load_settings, _save_settings, _get_asset_files
 
 
-_get_audio_file()
+_get_asset_files()
 _ensure_settings_file()
 CONFIG = _load_settings()
 

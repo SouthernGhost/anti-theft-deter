@@ -31,8 +31,8 @@ except Exception:
         "show_stats": False,
         "stats_scale_factor": False,
         "annotations": {"bathroom_zone": False, "persons": False, "items": False, "show_fps": False},
-        "merchandise_classes": COCO_ITEMS,
-        "person_classes": [0],
+        "merchandise_classes": [1],
+        "person_classes": [],
         "max_reconnect_attempts": 10,
         "reconnect_delay": 5,
         "detection_frequency": 0.1,
@@ -86,25 +86,20 @@ def _save_settings(config:dict):
             json.dump(config, f, indent=2)
 
 
-def _get_audio_file():
-    path = Path.home() / "BathroomMonitor/audio/"
-    os.makedirs(path, exist_ok=True)
-    file_path = os.path.join(path, 'speech1.wav')
-    repo_url = 'https://raw.githubusercontent.com/SouthernGhost/anti-theft-deter/main/audio/speech1.wav'
-
-    if os.path.isfile(file_path):
-        return
-    if not os.path.isfile(file_path):
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-        print(f"Downloading {repo_url}...")
-        response = requests.get(repo_url, headers=headers)
-        if response.status_code == 200:
-            with open(file_path, 'wb') as f:
-                f.write(response.content)
-            print(f"Saved {file_path}")
-        else:
-            print(f"Failed to download {file_path}. Status code: {response.status_code}")
-        return file_path
-
+def _get_asset_files():
+    base = Path.home() / "BathroomMonitor"
+    audio = base / "audio/speech1.wav"
+    model = base / "model.pt"  # Replace with your model filename
+    urls = {
+        audio: "https://raw.githubusercontent.com/SouthernGhost/anti-theft-deter/main/audio/speech1.wav",
+        model: "https://raw.githubusercontent.com/SouthernGhost/anti-theft-deter/main/assets/hands_detector.pt"
+    }
+    headers = {"User-Agent": "Mozilla/5.0"}
+    for path, url in urls.items():
+        if url and not path.exists():
+            os.makedirs(path.parent, exist_ok=True)
+            r = requests.get(url, headers=headers)
+            if r.ok: open(path, "wb").write(r.content)
+            else: print(f"Failed {url} ({r.status_code})")
 
 
