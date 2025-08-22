@@ -2,7 +2,6 @@ import json
 import os
 from pathlib import Path
 import requests
-from typing import final
 
 # Project root (utils/ is one level below root)
 ROOT_DIR = Path(__file__).resolve().parents[1]
