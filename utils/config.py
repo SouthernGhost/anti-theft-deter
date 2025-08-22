@@ -36,13 +36,13 @@ except Exception:
         "max_reconnect_attempts": 10,
         "reconnect_delay": 5,
         "detection_frequency": 0.1,
-        "confidence_threshold": 0.25,
-        "max_detections": 50,
+        "confidence_threshold": 0.5,
+        "max_detections": 6,
         "imgsz": 416,
         "abandoned_timeout_seconds": 5,
         "association_overlap_threshold": 0.3,
         "association_min_duration_seconds": 0.0,
-        "suppress_alarm_for_unassociated_items": True,
+        "suppress_alarm_for_unassociated_items": False,
         "min_announcement_interval": 0.001,
         "person_annotation_threshold": 0.3,
         "person_association_threshold": 0.3,
@@ -89,14 +89,15 @@ def _save_settings(config:dict):
 def _get_asset_files():
     base = Path.home() / "BathroomMonitor"
     audio = base / "audio/speech1.wav"
-    model = base / "model.pt"  # Replace with your model filename
+    model = base / "hands_detector.pt"  # Replace with your model filename
     urls = {
-        audio: "https://raw.githubusercontent.com/SouthernGhost/anti-theft-deter/main/audio/speech1.wav",
+        audio: "https://raw.githubusercontent.com/SouthernGhost/anti-theft-deter/main/assets/speech1.wav",
         model: "https://raw.githubusercontent.com/SouthernGhost/anti-theft-deter/main/assets/hands_detector.pt"
     }
     headers = {"User-Agent": "Mozilla/5.0"}
     for path, url in urls.items():
         if url and not path.exists():
+            print('Downloading assets...')
             os.makedirs(path.parent, exist_ok=True)
             r = requests.get(url, headers=headers)
             if r.ok: open(path, "wb").write(r.content)
