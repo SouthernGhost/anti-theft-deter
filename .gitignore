@@ -16,3 +16,4 @@ settings.json
 *.spec
 build/
 dist/
+train_yolo.py
